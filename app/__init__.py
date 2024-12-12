@@ -9,6 +9,7 @@ from app.bookmarks.routes import bookmarks_bp
 from app.common.error_handlers import register_error_handlers
 from app.database import close_db
 from app.config import Config
+from app.companies.routes import companies_bp
 
 def create_app():
     app = Flask(__name__)
@@ -20,6 +21,7 @@ def create_app():
     app.register_blueprint(user_bp, url_prefix='/users')
     app.register_blueprint(applications_bp, url_prefix='/applications')
     app.register_blueprint(bookmarks_bp, url_prefix='/bookmarks')
+    app.register_blueprint(companies_bp, url_prefix='/companies')
 
     # Register Swagger UI blueprint
     swaggerui_blueprint = get_swaggerui_blueprint(
