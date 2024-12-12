@@ -10,7 +10,15 @@ auth_bp = Blueprint('auth', __name__)
 @auth_bp.route('/register', methods=['POST'])
 def register_user():
     try:
-        data = request.get_json(force=True, silent=True)
+        # JSON 데이터 가져오기
+        try:
+            data = request.get_json()
+        except Exception as e:
+            return make_response(jsonify({
+                "status": "error",
+                "code": "InvalidJSON",
+                "message": "Invalid JSON data"
+            }), 400)
         
         if not data:
             return make_response(jsonify({

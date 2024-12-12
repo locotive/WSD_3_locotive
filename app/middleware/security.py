@@ -107,8 +107,10 @@ def validate_json():
                         "message": "Content-Type must be application/json"
                     }), 400)
                 
-                data = request.get_json(force=True, silent=True)
-                if data is None:
+                # JSON 파싱 시도
+                try:
+                    request.get_json()
+                except Exception as e:
                     return make_response(jsonify({
                         "status": "error",
                         "code": "InvalidJSON",
