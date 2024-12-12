@@ -1,7 +1,7 @@
 from flask import request, jsonify, g, current_app
 from functools import wraps
 from app.database import get_db
-import jwt  # jose 대신 PyJWT 사용
+import jwt
 import logging
 
 def login_required(f):
@@ -24,12 +24,19 @@ def login_required(f):
             
             try:
                 secret_key = current_app.config.get('JWT_SECRET_KEY')
-                logging.info(f"Secret key exists: {bool(secret_key)}")
+                if not secret_key:
+                    logging.error("JWT_SECRET_KEY not found in config")
+                    return jsonify({"status": "error", "message": "Server configuration error"}), 500
                 
+                logging.info("Attempting to decode token...")
                 payload = jwt.decode(token, secret_key, algorithms=['HS256'])
-                logging.info(f"Token decoded successfully: {payload}")
+                logging.info(f"Token payload: {payload}")
                 
-                user_id = int(payload.get('user_id'))
+                if 'user_id' not in payload:
+                    logging.error("user_id not found in token payload")
+                    return jsonify({"status": "error", "message": "Invalid token content"}), 401
+                
+                user_id = payload['user_id']
                 logging.info(f"User ID from token: {user_id}")
 
                 db = get_db()
@@ -50,6 +57,7 @@ def login_required(f):
                     return jsonify({"status": "error", "message": "User not found"}), 401
 
                 g.current_user = user
+                logging.info(f"User authenticated: {user['user_id']}")
                 return f(*args, **kwargs)
 
             except jwt.ExpiredSignatureError:
