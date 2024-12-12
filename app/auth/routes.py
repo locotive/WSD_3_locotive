@@ -91,24 +91,35 @@ def login():
 @login_required
 def get_profile():
     try:
-        logging.info(f"Getting profile for user: {g.current_user['user_id']}")
+        logging.info(f"[Route] Starting get_profile for user: {g.current_user}")
         user_id = g.current_user['user_id']
+        logging.info(f"[Route] Extracted user_id: {user_id}")
+        
         user, error = User.get_user_profile(user_id)
+        logging.info(f"[Route] get_user_profile result - user: {user}, error: {error}")
         
         if error:
-            logging.error(f"Profile fetch error: {error}")
+            logging.error(f"[Route] Profile fetch error: {error}")
             return make_response(jsonify({
                 "status": "error",
                 "message": error
             }), 404)
-        logging.info(f"Profile fetched successfully for user: {g.current_user['user_id']}")
+            
+        if not user:
+            logging.error("[Route] User data not found")
+            return make_response(jsonify({
+                "status": "error",
+                "message": "User not found"
+            }), 404)
+            
+        logging.info(f"[Route] Profile fetched successfully for user: {user_id}")
         return make_response(jsonify({
             "status": "success",
             "data": user
         }), 200)
 
     except Exception as e:
-        logging.error(f"Profile fetch error: {str(e)}")
+        logging.error(f"[Route] Profile fetch error: {str(e)}")
         return make_response(jsonify({
             "status": "error",
             "message": str(e)
