@@ -216,16 +216,19 @@ def create_app():
             if request.path.startswith(('/api/docs', '/static', '/metrics')):
                 return f(*args, **kwargs)
             
-            # 보안 미들웨어를 먼저 적용 (인증 체크)    
-            if not request.path.startswith(('/static', '/metrics')):
-                wrapped = security.validate_request()(f)
-                wrapped = security.security_headers()(wrapped)
-            else:
-                wrapped = f
-                
-            # 그 다음 다른 미들웨어 적용
-            wrapped = metrics.track_request()(wrapped)
+            # 메트릭과 레이트 리밋은 모든 요청에 적용
+            wrapped = metrics.track_request()(f)
             wrapped = api_rate_limit()(wrapped)
+            
+            # Authorization 헤더 검사
+            auth_header = request.headers.get('Authorization')
+            if not auth_header and not request.path.startswith(('/auth/login', '/auth/register')):
+                return jsonify({"message": "Authorization header is missing"}), 401
+            
+            # 보안 미들웨어 적용
+            if not request.path.startswith(('/static', '/metrics')):
+                wrapped = security.validate_request()(wrapped)
+                wrapped = security.security_headers()(wrapped)
             
             # 캐시는 마지막에 적용
             if request.method == 'GET':
