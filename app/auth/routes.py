@@ -10,8 +10,16 @@ auth_bp = Blueprint('auth', __name__)
 @auth_bp.route('/register', methods=['POST'])
 def register_user():
     try:
+        # JSON 데이터 파싱
         data = request.get_json(force=True)
         
+        if not data:
+            return make_response(jsonify({
+                "status": "error",
+                "code": "InvalidJSON",
+                "message": "No JSON data received"
+            }), 400)
+
         # 필수 필드 검증
         required_fields = ['email', 'password', 'name']
         for field in required_fields:
