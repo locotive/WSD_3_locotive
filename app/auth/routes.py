@@ -2,28 +2,73 @@ from flask import Blueprint, request, jsonify, g
 from app.auth.models import User
 from app.auth.utils import validate_user_data, decode_token
 from app.common.middleware import login_required
+import logging
 
 auth_bp = Blueprint('auth', __name__)
 
 @auth_bp.route('/register', methods=['POST'])
 def register_user():
-    data = request.get_json()
-    error = validate_user_data(data)
-    if error:
-        return jsonify({"message": error}), 400
+    try:
+        # silent=True로 설정하여 JSON 파싱 오류를 무시
+        data = request.get_json(silent=True)
+        
+        if data is None:
+            return jsonify({
+                "status": "error",
+                "code": "InvalidJSON",
+                "message": "Invalid JSON data in request"
+            }), 400
 
-    tokens, error = User.create_user(
-        email=data['email'],
-        password=data['password'],
-        name=data['name'],
-        phone=data.get('phone'),
-        birth_date=data.get('birth_date')
-    )
+        # 필수 필드 검증
+        required_fields = ['email', 'password', 'name']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({
+                    "status": "error",
+                    "code": "MissingField",
+                    "message": f"Missing required field: {field}"
+                }), 400
 
-    if error:
-        return jsonify({"message": error}), 400
+        # 사용자 생성
+        try:
+            error = User.create_user(
+                email=data['email'],
+                password=data['password'],
+                name=data['name']
+            )
+            
+            if error:
+                return jsonify({
+                    "status": "error",
+                    "code": "UserCreationError",
+                    "message": error
+                }), 400
 
-    return jsonify(tokens)
+            # 토큰 생성
+            access_token = create_access_token({"email": data['email']})
+            refresh_token = create_refresh_token({"email": data['email']})
+
+            return jsonify({
+                "status": "success",
+                "access_token": access_token,
+                "refresh_token": refresh_token
+            }), 200
+
+        except Exception as e:
+            logging.error(f"User creation error: {str(e)}")
+            return jsonify({
+                "status": "error",
+                "code": "UserCreationError",
+                "message": str(e)
+            }), 500
+
+    except Exception as e:
+        logging.error(f"Registration error: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "code": type(e).__name__,
+            "message": str(e)
+        }), 500
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
