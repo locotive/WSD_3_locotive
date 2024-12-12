@@ -27,6 +27,7 @@ import yaml
 import json
 import os
 from functools import wraps
+import logging
 
 def create_app():
     app = Flask(__name__,
@@ -309,6 +310,13 @@ def create_app():
 
     @app.errorhandler(Exception)
     def handle_error(error):
+        # 에러 상세 로깅
+        logging.error(f"[Error Handler] Exception type: {type(error).__name__}")
+        logging.error(f"[Error Handler] Error message: {str(error)}")
+        logging.error(f"[Error Handler] Request path: {request.path}")
+        logging.error(f"[Error Handler] Request method: {request.method}")
+        logging.error(f"[Error Handler] Request headers: {dict(request.headers)}")
+        
         # 에러 로깅
         logger.log_error(error)
         
@@ -324,6 +332,13 @@ def create_app():
                     status='500'
                 )._value.get()
             )
+        
+        # Bad Request 에러인 경우 추가 정보 로깅
+        if getattr(error, 'code', 500) == 400:
+            logging.error(f"[Error Handler] Bad Request details:")
+            logging.error(f"[Error Handler] Request data: {request.get_data()}")
+            if request.is_json:
+                logging.error(f"[Error Handler] JSON data: {request.get_json(silent=True)}")
         
         # 에러 응답
         return jsonify({

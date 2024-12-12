@@ -8,17 +8,19 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         try:
-            logging.info(f"[Auth] Endpoint: {request.endpoint}, Path: {request.path}")
-            auth_header = request.headers.get('Authorization')
-            logging.info(f"[Auth] Authorization header: {auth_header}")
+            logging.info(f"[Auth] Starting authentication for endpoint: {request.endpoint}")
+            logging.info(f"[Auth] Request path: {request.path}")
+            logging.info(f"[Auth] Request method: {request.method}")
+            logging.info(f"[Auth] Request headers: {dict(request.headers)}")
             
+            auth_header = request.headers.get('Authorization')
             if not auth_header:
                 logging.error("[Auth] No Authorization header present")
                 return jsonify({
                     "status": "error",
                     "message": "No Authorization header"
                 }), 401
-                
+            
             if not auth_header.startswith('Bearer '):
                 return jsonify({
                     "status": "error",
@@ -91,10 +93,13 @@ def login_required(f):
                 }), 401
 
         except Exception as e:
-            logging.error(f"[Middleware] Middleware error: {str(e)}")
+            logging.error(f"[Auth] Authentication error details:")
+            logging.error(f"[Auth] Exception type: {type(e).__name__}")
+            logging.error(f"[Auth] Error message: {str(e)}")
+            logging.error(f"[Auth] Request path: {request.path}")
             return jsonify({
                 "status": "error",
-                "message": "Server error"
-            }), 500
-
+                "message": f"Authentication error: {str(e)}"
+            }), 401
+            
     return decorated_function 
