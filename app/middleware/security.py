@@ -97,7 +97,7 @@ class SecurityMiddleware:
                         
                         # 입력 살균
                         sanitized_data = self.sanitize_input(data)
-                        request._cached_json = (sanitized_data, True)
+                        request._cached_json = [sanitized_data, True]
 
                     # URL 파라미터 검증
                     for key, value in request.args.items():
@@ -107,14 +107,26 @@ class SecurityMiddleware:
                                 "message": "Invalid query parameter"
                             }), 400)
 
-                    return f(*args, **kwargs)
+                    result = f(*args, **kwargs)
+                    
+                    # 결과가 튜플인 경우 (data, status_code)
+                    if isinstance(result, tuple):
+                        data, status = result
+                        return make_response(jsonify(data), status)
+                    
+                    # 결과가 Response 객체인 경우
+                    if isinstance(result, Response):
+                        return result
+                    
+                    # 그 외의 경우
+                    return make_response(jsonify(result), 200)
 
                 except Exception as e:
                     logging.error(f"Request validation error: {str(e)}")
                     return make_response(jsonify({
                         "status": "error",
                         "message": str(e)
-                    }), 400)
+                    }), 500)
             return wrapped
         return decorator
 
