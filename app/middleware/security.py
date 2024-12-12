@@ -15,7 +15,6 @@ class SecurityMiddleware:
     def sanitize_input(self, data):
         """입력 데이터 살균"""
         if isinstance(data, str):
-            # HTML 이스케이프
             return html.escape(data)
         elif isinstance(data, dict):
             return {k: self.sanitize_input(v) for k, v in data.items()}
@@ -26,8 +25,7 @@ class SecurityMiddleware:
     def check_xss(self, data):
         """XSS 공격 탐지"""
         if isinstance(data, str):
-            if self.xss_pattern.search(data):
-                return True
+            return bool(self.xss_pattern.search(data))
         elif isinstance(data, dict):
             return any(self.check_xss(v) for v in data.values())
         elif isinstance(data, list):
@@ -37,8 +35,7 @@ class SecurityMiddleware:
     def check_sql_injection(self, data):
         """SQL Injection 탐지"""
         if isinstance(data, str):
-            if self.sql_pattern.search(data):
-                return True
+            return bool(self.sql_pattern.search(data))
         elif isinstance(data, dict):
             return any(self.check_sql_injection(v) for v in data.values())
         elif isinstance(data, list):
@@ -50,17 +47,23 @@ class SecurityMiddleware:
         def decorator(f):
             @wraps(f)
             def wrapped(*args, **kwargs):
-                response = f(*args, **kwargs)
-                if not isinstance(response, Response):
-                    response = make_response(response)
+                try:
+                    response = f(*args, **kwargs)
+                    if isinstance(response, tuple):
+                        response = make_response(response[0]), response[1]
+                    if not isinstance(response, Response):
+                        response = make_response(response)
                     
-                response.headers['X-Content-Type-Options'] = 'nosniff'
-                response.headers['X-Frame-Options'] = 'SAMEORIGIN'
-                response.headers['X-XSS-Protection'] = '1; mode=block'
-                response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-                response.headers['Content-Security-Policy'] = "default-src 'self'"
-                
-                return response
+                    response.headers['X-Content-Type-Options'] = 'nosniff'
+                    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+                    response.headers['X-XSS-Protection'] = '1; mode=block'
+                    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+                    response.headers['Content-Security-Policy'] = "default-src 'self'"
+                    
+                    return response
+                except Exception as e:
+                    logging.error(f"Security headers error: {str(e)}")
+                    return jsonify({"status": "error", "message": str(e)}), 500
             return wrapped
         return decorator
 
@@ -70,30 +73,39 @@ class SecurityMiddleware:
             @wraps(f)
             def wrapped(*args, **kwargs):
                 try:
-                    # force=False, silent=True 옵션 추가
-                    data = request.get_json(force=False, silent=True)
-                    if data is None:
-                        return jsonify({
-                            "status": "error",
-                            "message": "Invalid JSON data"
-                        }), 400
-                    
-                    # XSS 검사
-                    if self.check_xss(data):
-                        abort(400, description="Potential XSS attack detected")
-                    
-                    # SQL Injection 검사
-                    if self.check_sql_injection(data):
-                        abort(400, description="Potential SQL injection detected")
-                    
-                    # 입력 살균
-                    sanitized_data = self.sanitize_input(data)
-                    request._cached_json = (True, sanitized_data)  # 캐시 업데이트
+                    if request.is_json:
+                        data = request.get_json(force=False, silent=True)
+                        if data is None:
+                            return jsonify({
+                                "status": "error",
+                                "message": "Invalid JSON data"
+                            }), 400
+                        
+                        # XSS 검사
+                        if self.check_xss(data):
+                            return jsonify({
+                                "status": "error",
+                                "message": "Potential XSS attack detected"
+                            }), 400
+                        
+                        # SQL Injection 검사
+                        if self.check_sql_injection(data):
+                            return jsonify({
+                                "status": "error",
+                                "message": "Potential SQL injection detected"
+                            }), 400
+                        
+                        # 입력 살균
+                        sanitized_data = self.sanitize_input(data)
+                        setattr(request, '_cached_json', [True, sanitized_data])
 
                     # URL 파라미터 검증
                     for key, value in request.args.items():
                         if self.check_xss(value) or self.check_sql_injection(value):
-                            abort(400, description="Invalid query parameter")
+                            return jsonify({
+                                "status": "error",
+                                "message": "Invalid query parameter"
+                            }), 400
 
                     return f(*args, **kwargs)
                 except Exception as e:
