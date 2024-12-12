@@ -91,8 +91,30 @@ def login():
 @login_required
 def get_profile():
     try:
+        if not hasattr(g, 'current_user'):
+            logging.error("[Route] No current_user in g object")
+            return make_response(jsonify({
+                "status": "error",
+                "message": "Authentication required"
+            }), 401)
+            
+        if not g.current_user:
+            logging.error("[Route] current_user is None")
+            return make_response(jsonify({
+                "status": "error",
+                "message": "User not found"
+            }), 404)
+            
         logging.info(f"[Route] Starting get_profile for user: {g.current_user}")
-        user_id = g.current_user['user_id']
+        user_id = g.current_user.get('user_id')
+        
+        if not user_id:
+            logging.error("[Route] No user_id in current_user")
+            return make_response(jsonify({
+                "status": "error",
+                "message": "Invalid user data"
+            }), 400)
+            
         logging.info(f"[Route] Extracted user_id: {user_id}")
         
         user, error = User.get_user_profile(user_id)
@@ -118,6 +140,13 @@ def get_profile():
             "data": user
         }), 200)
 
+    except KeyError as e:
+        logging.error(f"[Route] Key error in profile fetch: {str(e)}")
+        return make_response(jsonify({
+            "status": "error",
+            "message": f"Missing required field: {str(e)}"
+        }), 400)
+        
     except Exception as e:
         logging.error(f"[Route] Profile fetch error: {str(e)}")
         return make_response(jsonify({
