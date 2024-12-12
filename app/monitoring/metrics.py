@@ -124,5 +124,13 @@ class APIMetrics:
         memory_info = process.memory_info()
         self.memory_usage.set(memory_info.rss)
 
+    def update_latency_metrics(self, endpoint, duration):
+        """지연 시간 메트릭스 업데이트"""
+        if endpoint:
+            self.request_latency.labels(
+                method=request.method,
+                endpoint=endpoint
+            ).observe(duration)
+
 # 싱글톤 인스턴스
 metrics = APIMetrics() 
