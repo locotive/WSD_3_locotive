@@ -23,8 +23,10 @@ def verify_password(password: str, hashed_password: str) -> bool:
 def generate_tokens(user_id: int) -> dict:
     """Access Token과 Refresh Token을 생성하는 함수"""
     try:
-        secret_key = str(current_app.config['JWT_SECRET_KEY'])  # JWT_SECRET_KEY 사용
-        
+        secret_key = current_app.config.get('JWT_SECRET_KEY')
+        if not secret_key:
+            raise ValueError("JWT_SECRET_KEY is not configured")
+            
         # Access Token 생성 (만료시간 1시간)
         access_token = jwt.encode(
             {
@@ -45,8 +47,10 @@ def generate_tokens(user_id: int) -> dict:
 def verify_token(token: str) -> dict:
     """토큰을 검증하고 페이로드를 반환하는 함수"""
     try:
-        secret_key = str(current_app.config['JWT_SECRET_KEY'])  # JWT_SECRET_KEY 사용
-        
+        secret_key = current_app.config.get('JWT_SECRET_KEY')
+        if not secret_key:
+            raise ValueError("JWT_SECRET_KEY is not configured")
+            
         payload = jwt.decode(
             token,
             secret_key,

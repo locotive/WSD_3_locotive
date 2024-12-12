@@ -32,6 +32,13 @@ def create_app():
         static_url_path='/static',
         static_folder='static'
     )
+    
+    # Config 적용
+    app.config.from_object(Config)
+    
+    # 환경 변수에서 직접 로드 (백업)
+    app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
+    
     CORS(app)
 
     # 로깅 설정

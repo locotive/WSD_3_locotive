@@ -76,24 +76,24 @@ class SecurityMiddleware:
                     if request.is_json:
                         data = request.get_json(force=True, silent=True)
                         if data is None:
-                            return make_response(jsonify({
+                            return jsonify({
                                 "status": "error",
                                 "message": "Invalid JSON data"
-                            }), 400)
+                            }), 400
                         
                         # XSS 검사
                         if self.check_xss(data):
-                            return make_response(jsonify({
+                            return jsonify({
                                 "status": "error",
                                 "message": "Potential XSS attack detected"
-                            }), 400)
+                            }), 400
                         
                         # SQL Injection 검사
                         if self.check_sql_injection(data):
-                            return make_response(jsonify({
+                            return jsonify({
                                 "status": "error",
                                 "message": "Potential SQL injection detected"
-                            }), 400)
+                            }), 400
                         
                         # 입력 살균
                         sanitized_data = self.sanitize_input(data)
@@ -102,32 +102,32 @@ class SecurityMiddleware:
                     # URL 파라미터 검증
                     for key, value in request.args.items():
                         if self.check_xss(value) or self.check_sql_injection(value):
-                            return make_response(jsonify({
+                            return jsonify({
                                 "status": "error",
                                 "message": "Invalid query parameter"
-                            }), 400)
+                            }), 400
 
                     result = f(*args, **kwargs)
                     
                     # 결과가 튜플인 경우 (data, status_code)
                     if isinstance(result, tuple):
-                        if len(result) == 2:
-                            return make_response(jsonify(result[0]), result[1])
-                        return result
+                        data = result[0]
+                        status = result[1] if len(result) > 1 else 200
+                        return jsonify(data), status
                     
                     # 결과가 Response 객체인 경우
                     if isinstance(result, Response):
                         return result
                     
                     # 그 외의 경우
-                    return make_response(jsonify(result), 200)
+                    return jsonify(result), 200
 
                 except Exception as e:
                     logging.error(f"Request validation error: {str(e)}")
-                    return make_response(jsonify({
+                    return jsonify({
                         "status": "error",
                         "message": str(e)
-                    }), 500)
+                    }), 500
             return wrapped
         return decorator
 
