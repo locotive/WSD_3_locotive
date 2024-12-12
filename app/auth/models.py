@@ -1,5 +1,5 @@
 from app.database import get_db
-from app.auth.utils import hash_password, generate_tokens
+from app.auth.utils import hash_password, verify_password, generate_tokens
 import logging
 from datetime import datetime
 
