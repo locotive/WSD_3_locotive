@@ -93,27 +93,27 @@ def get_profile():
     try:
         if not hasattr(g, 'current_user'):
             logging.error("[Route] No current_user in g object")
-            return make_response(jsonify({
+            return jsonify({
                 "status": "error",
                 "message": "Authentication required"
-            }), 401)
+            }), 401
             
         if not g.current_user:
             logging.error("[Route] current_user is None")
-            return make_response(jsonify({
+            return jsonify({
                 "status": "error",
                 "message": "User not found"
-            }), 404)
+            }), 404
             
         logging.info(f"[Route] Starting get_profile for user: {g.current_user}")
         user_id = g.current_user.get('user_id')
         
         if not user_id:
             logging.error("[Route] No user_id in current_user")
-            return make_response(jsonify({
+            return jsonify({
                 "status": "error",
                 "message": "Invalid user data"
-            }), 400)
+            }), 400
             
         logging.info(f"[Route] Extracted user_id: {user_id}")
         
@@ -122,37 +122,38 @@ def get_profile():
         
         if error:
             logging.error(f"[Route] Profile fetch error: {error}")
-            return make_response(jsonify({
+            return jsonify({
                 "status": "error",
                 "message": error
-            }), 404)
+            }), 404
             
         if not user:
             logging.error("[Route] User data not found")
-            return make_response(jsonify({
+            return jsonify({
                 "status": "error",
                 "message": "User not found"
-            }), 404)
+            }), 404
             
         logging.info(f"[Route] Profile fetched successfully for user: {user_id}")
-        return make_response(jsonify({
+        
+        if user.get('created_at'):
+            user['created_at'] = user['created_at'].isoformat()
+        if user.get('last_login'):
+            user['last_login'] = user['last_login'].isoformat()
+        if user.get('birth_date'):
+            user['birth_date'] = user['birth_date'].isoformat()
+            
+        return jsonify({
             "status": "success",
             "data": user
-        }), 200)
+        }), 200
 
-    except KeyError as e:
-        logging.error(f"[Route] Key error in profile fetch: {str(e)}")
-        return make_response(jsonify({
-            "status": "error",
-            "message": f"Missing required field: {str(e)}"
-        }), 400)
-        
     except Exception as e:
         logging.error(f"[Route] Profile fetch error: {str(e)}")
-        return make_response(jsonify({
+        return jsonify({
             "status": "error",
             "message": str(e)
-        }), 500)
+        }), 500
 
 @auth_bp.route('/profile', methods=['PUT'])
 @login_required
