@@ -21,10 +21,10 @@ def client(app):
 def db():
     connection = mysql.connector.connect(
         host=os.getenv('DB_HOST', '113.198.66.75'),
-        user=os.getenv('DB_USER', 'admin'),
-        password=os.getenv('DB_PASSWORD', 'xodbs1234'),
-        database=os.getenv('DB_NAME', 'wsd3_test'),
-        port=int(os.getenv('DB_PORT', '13145'))
+        user=os.getenv('DB_USER', 'myuser'),
+        password=os.getenv('DB_PASSWORD', 'mypassword'),
+        database=os.getenv('DB_NAME', 'mydb'),
+        port=int(os.getenv('DB_PORT', '13102'))
     )
     yield connection
     connection.close()
