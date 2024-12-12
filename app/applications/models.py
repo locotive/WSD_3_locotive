@@ -1,119 +1,144 @@
 from app.database import get_db
+import logging
 from datetime import datetime
 
 class Application:
     @staticmethod
-    def create_application(user_id: int, posting_id: int, resume_id: int = None, resume_file_content = None):
+    def apply_job(user_id: int, posting_id: int, resume_id: int):
         db = get_db()
         cursor = db.cursor(dictionary=True)
 
         try:
-            # Check for existing application
-            cursor.execute(
-                """
-                SELECT application_id FROM applications 
-                WHERE user_id=%s AND posting_id=%s
-                """,
-                (user_id, posting_id)
-            )
+            # 채용공고 유효성 확인
+            cursor.execute("""
+                SELECT posting_id 
+                FROM job_postings 
+                WHERE posting_id = %s AND status = 'active'
+                AND deadline_date >= CURDATE()
+            """, (posting_id,))
+            
+            if not cursor.fetchone():
+                return None, "Invalid or expired job posting"
+
+            # 이력서 유효성 확인
+            cursor.execute("""
+                SELECT resume_id 
+                FROM resumes 
+                WHERE resume_id = %s AND user_id = %s
+            """, (resume_id, user_id))
+            
+            if not cursor.fetchone():
+                return None, "Invalid resume"
+
+            # 중복 지원 확인
+            cursor.execute("""
+                SELECT application_id 
+                FROM applications 
+                WHERE user_id = %s AND posting_id = %s AND status != 'cancelled'
+            """, (user_id, posting_id))
+            
             if cursor.fetchone():
-                return None, "Already applied for this job posting"
+                return None, "Already applied to this posting"
 
-            # If resume file is provided, create new resume
-            if resume_file_content:
-                cursor.execute(
-                    """
-                    INSERT INTO resumes(user_id, title, content, is_primary)
-                    VALUES(%s, %s, %s, 0)
-                    """,
-                    (user_id, f"Resume {datetime.now()}", resume_file_content)
-                )
-                db.commit()
-                resume_id = cursor.lastrowid
-
-            # Verify resume ownership
-            if resume_id:
-                cursor.execute(
-                    "SELECT resume_id FROM resumes WHERE resume_id=%s AND user_id=%s",
-                    (resume_id, user_id)
-                )
-                if not cursor.fetchone():
-                    return None, "Not authorized to use this resume"
-
-            # Create application
-            cursor.execute(
-                """
-                INSERT INTO applications(user_id, posting_id, resume_id, status)
+            # 지원 생성
+            cursor.execute("""
+                INSERT INTO applications (user_id, posting_id, resume_id, status)
                 VALUES (%s, %s, %s, 'pending')
-                """,
-                (user_id, posting_id, resume_id)
-            )
+            """, (user_id, posting_id, resume_id))
+            
+            application_id = cursor.lastrowid
             db.commit()
-            return cursor.lastrowid, None
+
+            return application_id, None
 
         except Exception as e:
             db.rollback()
+            logging.error(f"Application creation error: {str(e)}")
             return None, str(e)
         finally:
             cursor.close()
 
     @staticmethod
-    def get_applications(user_id: int, status_filter: str = None, sort_by_date: str = "desc", page: int = 1):
+    def cancel_application(user_id: int, application_id: int):
         db = get_db()
-        cursor = db.cursor(dictionary=True)
+        cursor = db.cursor()
 
         try:
-            query = """
-            SELECT a.application_id, a.posting_id, jp.title, a.status, a.applied_at
-            FROM applications a
-            JOIN job_postings jp ON a.posting_id=jp.posting_id
-            WHERE a.user_id=%s
-            """
-            params = [user_id]
-
-            if status_filter:
-                query += " AND a.status=%s"
-                params.append(status_filter)
-
-            query += " ORDER BY a.applied_at " + ("ASC" if sort_by_date == "asc" else "DESC")
-
-            page_size = 20
-            offset = (page - 1) * page_size
-            query += f" LIMIT {page_size} OFFSET {offset}"
-
-            cursor.execute(query, params)
-            return cursor.fetchall()
-
-        finally:
-            cursor.close()
-
-    @staticmethod
-    def delete_application(application_id: int, user_id: int):
-        db = get_db()
-        cursor = db.cursor(dictionary=True)
-
-        try:
-            cursor.execute(
-                "SELECT user_id FROM applications WHERE application_id=%s",
-                (application_id,)
-            )
+            # 지원 내역 확인
+            cursor.execute("""
+                SELECT status 
+                FROM applications 
+                WHERE application_id = %s AND user_id = %s
+            """, (application_id, user_id))
+            
             application = cursor.fetchone()
-
             if not application:
                 return "Application not found"
             
-            if application['user_id'] != user_id:
-                return "Not authorized to cancel this application"
+            if application[0] == 'cancelled':
+                return "Application already cancelled"
 
-            cursor.execute(
-                "DELETE FROM applications WHERE application_id=%s",
-                (application_id,)
-            )
+            # 지원 취소
+            cursor.execute("""
+                UPDATE applications 
+                SET status = 'cancelled' 
+                WHERE application_id = %s AND user_id = %s
+            """, (application_id, user_id))
+            
             db.commit()
             return None
 
         except Exception as e:
             db.rollback()
+            logging.error(f"Application cancellation error: {str(e)}")
             return str(e)
+        finally:
+            cursor.close()
+
+    @staticmethod
+    def get_user_applications(user_id: int, page: int = 1, per_page: int = 10):
+        db = get_db()
+        cursor = db.cursor(dictionary=True)
+
+        try:
+            # 지원 내역 조회
+            cursor.execute("""
+                SELECT 
+                    a.*,
+                    j.title as posting_title,
+                    j.deadline_date,
+                    c.name as company_name,
+                    r.title as resume_title
+                FROM applications a
+                JOIN job_postings j ON a.posting_id = j.posting_id
+                JOIN companies c ON j.company_id = c.company_id
+                JOIN resumes r ON a.resume_id = r.resume_id
+                WHERE a.user_id = %s
+                ORDER BY a.applied_at DESC
+                LIMIT %s OFFSET %s
+            """, (user_id, per_page, (page - 1) * per_page))
+            
+            applications = cursor.fetchall()
+
+            # 전체 개수 조회
+            cursor.execute("""
+                SELECT COUNT(*) as total
+                FROM applications
+                WHERE user_id = %s
+            """, (user_id,))
+            
+            total = cursor.fetchone()['total']
+
+            return {
+                'applications': applications,
+                'total': total,
+                'page': page,
+                'per_page': per_page,
+                'total_pages': (total + per_page - 1) // per_page
+            }, None
+
+        except Exception as e:
+            logging.error(f"Applications fetch error: {str(e)}")
+            return None, str(e)
         finally:
             cursor.close() 

@@ -1,109 +1,154 @@
-from flask import Blueprint, request, jsonify
-from app.common.middleware import login_required
-from app.database import get_db
+from flask import Blueprint, request, jsonify, make_response, g
+from app.jobs.models import JobPosting
+from app.middleware.auth import login_required, company_required
 import logging
 
-jobs_bp = Blueprint('jobs', __name__)
+jobs_bp = Blueprint('jobs', __name__, url_prefix='/jobs')
 
 @jobs_bp.route('', methods=['GET'])
-def get_jobs():
+def get_job_postings():
     try:
-        db = get_db()
-        cursor = db.cursor(dictionary=True)
+        # 검색 및 필터링 파라미터
+        filters = {}
+        if request.args.get('search'):
+            filters['search'] = request.args.get('search')
+        if request.args.get('location_id'):
+            filters['location_id'] = int(request.args.get('location_id'))
+        if request.args.get('categories'):
+            filters['categories'] = [int(x) for x in request.args.get('categories').split(',')]
+        if request.args.get('tech_stacks'):
+            filters['tech_stacks'] = [int(x) for x in request.args.get('tech_stacks').split(',')]
 
-        # 페이지네이션 파라미터
+        # 페이지네이션
         page = int(request.args.get('page', 1))
-        per_page = int(request.args.get('per_page', 20))
-        offset = (page - 1) * per_page
+        per_page = int(request.args.get('per_page', 10))
 
-        # 필터링 파라미터
-        filters = {
-            'location': request.args.get('location'),
-            'experience': request.args.get('experience'),
-            'education': request.args.get('education'),
-            'salary_min': request.args.get('salary_min'),
-            'salary_max': request.args.get('salary_max'),
-            'keyword': request.args.get('keyword')
-        }
+        # 정렬
+        sort_by = request.args.get('sort_by', 'latest')
 
-        # 정렬 파라미터
-        sort = request.args.get('sort', 'created_at')
-        order = request.args.get('order', 'desc')
+        result, error = JobPosting.search_postings(filters, sort_by, page, per_page)
+        if error:
+            return make_response(jsonify({
+                "status": "error",
+                "message": error
+            }), 400)
 
-        # 기본 쿼리
-        query = """
-            SELECT SQL_CALC_FOUND_ROWS 
-                j.*, c.name as company_name, 
-                c.location as company_location
-            FROM jobs j
-            JOIN companies c ON j.company_id = c.id
-            WHERE j.status = 'active'
-        """
-        params = []
-
-        # 필터 조건 추가
-        if filters['location']:
-            query += " AND c.location LIKE %s"
-            params.append(f"%{filters['location']}%")
-        
-        if filters['experience']:
-            query += " AND j.experience = %s"
-            params.append(filters['experience'])
-            
-        if filters['education']:
-            query += " AND j.education = %s"
-            params.append(filters['education'])
-            
-        if filters['salary_min']:
-            query += " AND j.salary >= %s"
-            params.append(filters['salary_min'])
-            
-        if filters['salary_max']:
-            query += " AND j.salary <= %s"
-            params.append(filters['salary_max'])
-            
-        if filters['keyword']:
-            query += """ AND (
-                j.title LIKE %s OR 
-                j.description LIKE %s OR
-                c.name LIKE %s
-            )"""
-            keyword = f"%{filters['keyword']}%"
-            params.extend([keyword] * 3)
-
-        # 정렬 추가
-        query += f" ORDER BY {sort} {order}"
-
-        # 페이지네이션 추가
-        query += " LIMIT %s OFFSET %s"
-        params.extend([per_page, offset])
-
-        # 쿼리 실행
-        cursor.execute(query, params)
-        jobs = cursor.fetchall()
-
-        # 전체 결과 수 조회
-        cursor.execute("SELECT FOUND_ROWS()")
-        total = cursor.fetchone()['FOUND_ROWS()']
-
-        return jsonify({
+        return make_response(jsonify({
             "status": "success",
-            "data": {
-                "jobs": jobs,
-                "pagination": {
-                    "page": page,
-                    "per_page": per_page,
-                    "total": total,
-                    "pages": (total + per_page - 1) // per_page
-                }
-            }
-        })
+            "data": result
+        }), 200)
 
     except Exception as e:
-        logging.error(f"Jobs fetch error: {str(e)}")
-        return jsonify({
+        logging.error(f"Job postings fetch error: {str(e)}")
+        return make_response(jsonify({
             "status": "error",
             "message": str(e)
-        }), 500
-    finally:
-        cursor.close()
+        }), 500)
+
+@jobs_bp.route('/<int:posting_id>', methods=['GET'])
+def get_job_posting(posting_id):
+    try:
+        posting, error = JobPosting.get_posting(posting_id)
+        if error:
+            return make_response(jsonify({
+                "status": "error",
+                "message": error
+            }), 404)
+
+        return make_response(jsonify({
+            "status": "success",
+            "data": posting
+        }), 200)
+
+    except Exception as e:
+        logging.error(f"Job posting fetch error: {str(e)}")
+        return make_response(jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500)
+
+@jobs_bp.route('', methods=['POST'])
+@login_required
+@company_required
+def create_job_posting():
+    try:
+        data = request.get_json()
+        required_fields = ['title', 'job_description']
+        
+        for field in required_fields:
+            if field not in data:
+                return make_response(jsonify({
+                    "status": "error",
+                    "message": f"Missing required field: {field}"
+                }), 400)
+
+        posting_id, error = JobPosting.create_posting(g.company_id, data)
+        if error:
+            return make_response(jsonify({
+                "status": "error",
+                "message": error
+            }), 400)
+
+        return make_response(jsonify({
+            "status": "success",
+            "data": {"posting_id": posting_id}
+        }), 201)
+
+    except Exception as e:
+        logging.error(f"Job posting creation error: {str(e)}")
+        return make_response(jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500)
+
+@jobs_bp.route('/<int:posting_id>', methods=['PUT'])
+@login_required
+@company_required
+def update_job_posting(posting_id):
+    try:
+        data = request.get_json()
+        
+        # TODO: Implement update_posting method
+        error = JobPosting.update_posting(posting_id, g.company_id, data)
+        if error:
+            return make_response(jsonify({
+                "status": "error",
+                "message": error
+            }), 400)
+
+        return make_response(jsonify({
+            "status": "success",
+            "message": "Job posting updated successfully"
+        }), 200)
+
+    except Exception as e:
+        logging.error(f"Job posting update error: {str(e)}")
+        return make_response(jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500)
+
+@jobs_bp.route('/<int:posting_id>', methods=['DELETE'])
+@login_required
+@company_required
+def delete_job_posting(posting_id):
+    try:
+        # TODO: Implement delete_posting method
+        error = JobPosting.delete_posting(posting_id, g.company_id)
+        if error:
+            return make_response(jsonify({
+                "status": "error",
+                "message": error
+            }), 400)
+
+        return make_response(jsonify({
+            "status": "success",
+            "message": "Job posting deleted successfully"
+        }), 200)
+
+    except Exception as e:
+        logging.error(f"Job posting deletion error: {str(e)}")
+        return make_response(jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500)

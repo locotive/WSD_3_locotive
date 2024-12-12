@@ -85,20 +85,11 @@ def login():
 @login_required
 def get_profile():
     try:
-        db = get_db()
-        cursor = db.cursor(dictionary=True)
-
-        cursor.execute("""
-            SELECT user_id, email, name, phone, birth_date, created_at
-            FROM users
-            WHERE user_id = %s AND status = 'active'
-        """, (g.user_id,))
-        
-        user = cursor.fetchone()
-        if not user:
+        user, error = User.get_user_profile(g.user_id)
+        if error:
             return make_response(jsonify({
                 "status": "error",
-                "message": "User not found"
+                "message": error
             }), 404)
 
         return make_response(jsonify({
@@ -112,8 +103,6 @@ def get_profile():
             "status": "error",
             "message": str(e)
         }), 500)
-    finally:
-        cursor.close()
 
 @auth_bp.route('/profile', methods=['PUT'])
 @login_required
@@ -140,6 +129,29 @@ def update_profile():
 
     except Exception as e:
         logging.error(f"Profile update error: {str(e)}")
+        return make_response(jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500)
+
+@auth_bp.route('/profile', methods=['DELETE'])
+@login_required
+def delete_user():
+    try:
+        error = User.delete_user(g.user_id)
+        if error:
+            return make_response(jsonify({
+                "status": "error",
+                "message": error
+            }), 400)
+
+        return make_response(jsonify({
+            "status": "success",
+            "message": "User account deactivated successfully"
+        }), 200)
+
+    except Exception as e:
+        logging.error(f"User deletion error: {str(e)}")
         return make_response(jsonify({
             "status": "error",
             "message": str(e)

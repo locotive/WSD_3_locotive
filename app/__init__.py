@@ -23,6 +23,9 @@ from app.crawling.scheduler import scheduler
 from app.crawling.routes import crawling_bp
 import time
 import atexit
+import yaml
+import json
+import os
 
 def create_app():
     app = Flask(__name__,
@@ -56,13 +59,65 @@ def create_app():
     app.register_blueprint(companies_bp, url_prefix='/companies')
     app.register_blueprint(crawling_bp, url_prefix='/crawling')
 
-    # Register Swagger UI blueprint
+    # Swagger 설정
     SWAGGER_URL = '/api/docs'
     API_URL = '/static/swagger.json'
+    
+    # swagger.json 파일 생성 로직
+    swagger_data = {
+        "openapi": "3.0.0",
+        "info": {
+            "title": "Job Board API",
+            "version": "1.0.0",
+            "description": "채용 플랫폼 API 문서"
+        },
+        "paths": {},
+        "components": {
+            "securitySchemes": {
+                "BearerAuth": {
+                    "type": "http",
+                    "scheme": "bearer",
+                    "bearerFormat": "JWT"
+                }
+            }
+        }
+    }
+    
+    # YAML 파일들을 로드하고 병합
+    yaml_files = ['auth.yml', 'jobs.yml', 'applications.yml']
+    for yaml_file in yaml_files:
+        file_path = os.path.join('app', 'docs', yaml_file)
+        if os.path.exists(file_path):
+            with open(file_path, 'r', encoding='utf-8') as f:
+                yaml_data = yaml.safe_load(f)
+                # paths 병합
+                if 'paths' in yaml_data:
+                    swagger_data['paths'].update(yaml_data['paths'])
+                # components 병합
+                if 'components' in yaml_data:
+                    for key, value in yaml_data['components'].items():
+                        if key not in swagger_data['components']:
+                            swagger_data['components'][key] = {}
+                        swagger_data['components'][key].update(value)
+                # tags 병합
+                if 'tags' in yaml_data:
+                    swagger_data.setdefault('tags', []).extend(yaml_data['tags'])
+    
+    # static 디렉토리가 없으면 생성
+    os.makedirs('app/static', exist_ok=True)
+    
+    # swagger.json 파일 저장
+    with open('app/static/swagger.json', 'w', encoding='utf-8') as f:
+        json.dump(swagger_data, f, ensure_ascii=False, indent=2)
+    
+    # Swagger UI Blueprint 등록
     swaggerui_blueprint = get_swaggerui_blueprint(
         SWAGGER_URL,
         API_URL,
-        config={'app_name': "Job API"}
+        config={
+            'app_name': "Job Board API",
+            'defaultModelsExpandDepth': -1  # 모델 섹션 숨기기
+        }
     )
     app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
 

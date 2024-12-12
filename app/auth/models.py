@@ -1,6 +1,7 @@
 from app.database import get_db
 from app.auth.utils import hash_password, generate_tokens
 import logging
+from datetime import datetime
 
 class User:
     @staticmethod
@@ -9,33 +10,69 @@ class User:
         cursor = db.cursor(dictionary=True)
 
         try:
-            cursor.execute("SELECT user_id FROM users WHERE email=%s", (email,))
+            cursor.execute("""
+                SELECT user_id FROM users 
+                WHERE email = %s AND status = 'active'
+            """, (email,))
+            
             if cursor.fetchone():
                 return None, "Email already registered"
 
             hashed_pw = hash_password(password)
 
-            cursor.execute(
-                """
-                INSERT INTO users(email, password_hash, name, phone, birth_date, status, created_at) 
-                VALUES (%s, %s, %s, %s, %s, 'active', NOW())
-                """,
-                (email, hashed_pw, name, phone, birth_date)
-            )
+            birth_date_obj = None
+            if birth_date:
+                try:
+                    birth_date_obj = datetime.strptime(birth_date, '%Y-%m-%d').date()
+                except ValueError:
+                    return None, "Invalid birth date format. Use YYYY-MM-DD"
+
+            cursor.execute("""
+                INSERT INTO users (
+                    email, 
+                    password_hash, 
+                    name, 
+                    phone, 
+                    birth_date, 
+                    status
+                ) VALUES (%s, %s, %s, %s, %s, 'active')
+            """, (
+                email,
+                hashed_pw,
+                name,
+                phone,
+                birth_date_obj
+            ))
+            
             db.commit()
             user_id = cursor.lastrowid
 
-            if not user_id:
+            cursor.execute("""
+                SELECT 
+                    user_id,
+                    email,
+                    name,
+                    phone,
+                    birth_date,
+                    created_at
+                FROM users 
+                WHERE user_id = %s
+            """, (user_id,))
+            
+            user_data = cursor.fetchone()
+            
+            if not user_data:
                 return None, "Failed to create user"
 
             tokens = generate_tokens(user_id)
 
             return {
-                "user_id": user_id,
-                "email": email,
-                "name": name,
+                "user_id": user_data['user_id'],
+                "email": user_data['email'],
+                "name": user_data['name'],
                 "access_token": tokens['access_token'],
-                "token_type": "bearer"
+                "token_type": "bearer",
+                "created_at": user_data['created_at'].isoformat()
             }, None
 
         except Exception as e:
@@ -114,5 +151,75 @@ class User:
         except Exception as e:
             db.rollback()
             return str(e)
+        finally:
+            cursor.close()
+
+    @staticmethod
+    def delete_user(user_id: int):
+        db = get_db()
+        cursor = db.cursor()
+
+        try:
+            # 사용자 상태를 'inactive'로 변경
+            cursor.execute("""
+                UPDATE users 
+                SET status = 'inactive' 
+                WHERE user_id = %s AND status = 'active'
+            """, (user_id,))
+            
+            if cursor.rowcount == 0:
+                return "User not found or already inactive"
+
+            # 관련 데이터 처리
+            # 지원 내역 상태 변경
+            cursor.execute("""
+                UPDATE applications 
+                SET status = 'cancelled' 
+                WHERE user_id = %s AND status = 'pending'
+            """, (user_id,))
+
+            # 북마크 삭제
+            cursor.execute("DELETE FROM bookmarks WHERE user_id = %s", (user_id,))
+
+            db.commit()
+            return None
+
+        except Exception as e:
+            db.rollback()
+            logging.error(f"User deletion error: {str(e)}")
+            return str(e)
+        finally:
+            cursor.close()
+
+    @staticmethod
+    def get_user_profile(user_id: int):
+        db = get_db()
+        cursor = db.cursor(dictionary=True)
+
+        try:
+            cursor.execute("""
+                SELECT 
+                    user_id,
+                    email,
+                    name,
+                    phone,
+                    birth_date,
+                    created_at,
+                    last_login,
+                    (SELECT COUNT(*) FROM applications WHERE user_id = users.user_id) as application_count,
+                    (SELECT COUNT(*) FROM bookmarks WHERE user_id = users.user_id) as bookmark_count
+                FROM users
+                WHERE user_id = %s AND status = 'active'
+            """, (user_id,))
+            
+            user = cursor.fetchone()
+            if not user:
+                return None, "User not found"
+
+            return user, None
+
+        except Exception as e:
+            logging.error(f"Profile fetch error: {str(e)}")
+            return None, str(e)
         finally:
             cursor.close() 

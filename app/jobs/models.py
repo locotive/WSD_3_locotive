@@ -1,5 +1,7 @@
 from typing import Dict, List, Optional, Union
 from app.database import get_db
+import logging
+from datetime import datetime
 
 class Job:
     @staticmethod
@@ -415,6 +417,313 @@ class Job:
 
         except Exception as e:
             db.rollback()
+            return str(e)
+        finally:
+            cursor.close() 
+
+class JobPosting:
+    @staticmethod
+    def create_posting(company_id: int, data: dict):
+        db = get_db()
+        cursor = db.cursor(dictionary=True)
+
+        try:
+            # 채용공고 기본 정보 입력
+            cursor.execute("""
+                INSERT INTO job_postings (
+                    company_id, title, job_description, 
+                    experience_level, education_level,
+                    employment_type, salary_info, location_id,
+                    deadline_date, status
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, 'active'
+                )
+            """, (
+                company_id,
+                data['title'],
+                data['job_description'],
+                data.get('experience_level'),
+                data.get('education_level'),
+                data.get('employment_type'),
+                data.get('salary_info'),
+                data.get('location_id'),
+                data.get('deadline_date')
+            ))
+            
+            posting_id = cursor.lastrowid
+
+            # 직무 카테고리 연결
+            if 'categories' in data:
+                for category_id in data['categories']:
+                    cursor.execute("""
+                        INSERT INTO posting_categories (posting_id, category_id)
+                        VALUES (%s, %s)
+                    """, (posting_id, category_id))
+
+            # 기술 스택 연결
+            if 'tech_stacks' in data:
+                for stack_id in data['tech_stacks']:
+                    cursor.execute("""
+                        INSERT INTO posting_tech_stacks (posting_id, stack_id)
+                        VALUES (%s, %s)
+                    """, (posting_id, stack_id))
+
+            db.commit()
+            return posting_id, None
+
+        except Exception as e:
+            db.rollback()
+            logging.error(f"Posting creation error: {str(e)}")
+            return None, str(e)
+        finally:
+            cursor.close()
+
+    @staticmethod
+    def get_posting(posting_id: int):
+        db = get_db()
+        cursor = db.cursor(dictionary=True)
+
+        try:
+            # 채용공고 기본 정보 조회
+            cursor.execute("""
+                SELECT 
+                    p.*,
+                    c.name as company_name,
+                    c.description as company_description,
+                    l.city, l.district,
+                    GROUP_CONCAT(DISTINCT jc.name) as categories,
+                    GROUP_CONCAT(DISTINCT ts.name) as tech_stacks
+                FROM job_postings p
+                LEFT JOIN companies c ON p.company_id = c.company_id
+                LEFT JOIN locations l ON p.location_id = l.location_id
+                LEFT JOIN posting_categories pc ON p.posting_id = pc.posting_id
+                LEFT JOIN job_categories jc ON pc.category_id = jc.category_id
+                LEFT JOIN posting_tech_stacks pts ON p.posting_id = pts.posting_id
+                LEFT JOIN tech_stacks ts ON pts.stack_id = ts.stack_id
+                WHERE p.posting_id = %s AND p.status = 'active'
+                GROUP BY p.posting_id
+            """, (posting_id,))
+            
+            posting = cursor.fetchone()
+            if not posting:
+                return None, "Posting not found"
+
+            # 조회수 증가
+            cursor.execute("""
+                UPDATE job_postings 
+                SET view_count = view_count + 1 
+                WHERE posting_id = %s
+            """, (posting_id,))
+            
+            db.commit()
+            return posting, None
+
+        except Exception as e:
+            db.rollback()
+            logging.error(f"Posting fetch error: {str(e)}")
+            return None, str(e)
+        finally:
+            cursor.close()
+
+    @staticmethod
+    def search_postings(filters: dict = None, sort_by: str = None, page: int = 1, per_page: int = 10):
+        db = get_db()
+        cursor = db.cursor(dictionary=True)
+
+        try:
+            # 기본 쿼리 구성
+            query = """
+                SELECT 
+                    p.*,
+                    c.name as company_name,
+                    l.city, l.district,
+                    GROUP_CONCAT(DISTINCT jc.name) as categories,
+                    GROUP_CONCAT(DISTINCT ts.name) as tech_stacks
+                FROM job_postings p
+                LEFT JOIN companies c ON p.company_id = c.company_id
+                LEFT JOIN locations l ON p.location_id = l.location_id
+                LEFT JOIN posting_categories pc ON p.posting_id = pc.posting_id
+                LEFT JOIN job_categories jc ON pc.category_id = jc.category_id
+                LEFT JOIN posting_tech_stacks pts ON p.posting_id = pts.posting_id
+                LEFT JOIN tech_stacks ts ON pts.stack_id = ts.stack_id
+                WHERE p.status = 'active'
+            """
+            params = []
+
+            # 필터 적용
+            if filters:
+                if 'search' in filters:
+                    query += " AND (p.title LIKE %s OR p.job_description LIKE %s)"
+                    search_term = f"%{filters['search']}%"
+                    params.extend([search_term, search_term])
+                
+                if 'location_id' in filters:
+                    query += " AND p.location_id = %s"
+                    params.append(filters['location_id'])
+                
+                if 'categories' in filters:
+                    query += " AND jc.category_id IN (%s)"
+                    params.append(filters['categories'])
+                
+                if 'tech_stacks' in filters:
+                    query += " AND ts.stack_id IN (%s)"
+                    params.append(filters['tech_stacks'])
+
+            # 그룹화
+            query += " GROUP BY p.posting_id"
+
+            # 정렬
+            if sort_by == 'latest':
+                query += " ORDER BY p.created_at DESC"
+            elif sort_by == 'views':
+                query += " ORDER BY p.view_count DESC"
+            elif sort_by == 'deadline':
+                query += " ORDER BY p.deadline_date ASC"
+
+            # 페이지네이션
+            query += " LIMIT %s OFFSET %s"
+            params.extend([per_page, (page - 1) * per_page])
+
+            cursor.execute(query, params)
+            postings = cursor.fetchall()
+
+            # 전체 결과 수 조회
+            count_query = """
+                SELECT COUNT(DISTINCT p.posting_id) as total
+                FROM job_postings p
+                LEFT JOIN posting_categories pc ON p.posting_id = pc.posting_id
+                LEFT JOIN posting_tech_stacks pts ON p.posting_id = pts.posting_id
+                WHERE p.status = 'active'
+            """
+            cursor.execute(count_query)
+            total = cursor.fetchone()['total']
+
+            return {
+                'postings': postings,
+                'total': total,
+                'page': page,
+                'per_page': per_page,
+                'total_pages': (total + per_page - 1) // per_page
+            }, None
+
+        except Exception as e:
+            logging.error(f"Posting search error: {str(e)}")
+            return None, str(e)
+        finally:
+            cursor.close()
+
+    @staticmethod
+    def update_posting(posting_id: int, company_id: int, data: dict):
+        db = get_db()
+        cursor = db.cursor(dictionary=True)
+
+        try:
+            # 채용공고 존재 여부 및 권한 확인
+            cursor.execute("""
+                SELECT posting_id 
+                FROM job_postings 
+                WHERE posting_id = %s AND company_id = %s AND status = 'active'
+            """, (posting_id, company_id))
+            
+            if not cursor.fetchone():
+                return "Posting not found or unauthorized"
+
+            # 기본 정보 업데이트
+            update_fields = []
+            update_values = []
+            
+            field_mappings = {
+                'title': 'title',
+                'job_description': 'job_description',
+                'experience_level': 'experience_level',
+                'education_level': 'education_level',
+                'employment_type': 'employment_type',
+                'salary_info': 'salary_info',
+                'location_id': 'location_id',
+                'deadline_date': 'deadline_date'
+            }
+
+            for key, field in field_mappings.items():
+                if key in data:
+                    update_fields.append(f"{field} = %s")
+                    update_values.append(data[key])
+
+            if update_fields:
+                update_values.extend([posting_id, company_id])
+                query = f"""
+                    UPDATE job_postings 
+                    SET {', '.join(update_fields)}
+                    WHERE posting_id = %s AND company_id = %s
+                """
+                cursor.execute(query, update_values)
+
+            # 직무 카테고리 업데이트
+            if 'categories' in data:
+                cursor.execute("DELETE FROM posting_categories WHERE posting_id = %s", (posting_id,))
+                for category_id in data['categories']:
+                    cursor.execute("""
+                        INSERT INTO posting_categories (posting_id, category_id)
+                        VALUES (%s, %s)
+                    """, (posting_id, category_id))
+
+            # 기술 스택 업데이트
+            if 'tech_stacks' in data:
+                cursor.execute("DELETE FROM posting_tech_stacks WHERE posting_id = %s", (posting_id,))
+                for stack_id in data['tech_stacks']:
+                    cursor.execute("""
+                        INSERT INTO posting_tech_stacks (posting_id, stack_id)
+                        VALUES (%s, %s)
+                    """, (posting_id, stack_id))
+
+            db.commit()
+            return None
+
+        except Exception as e:
+            db.rollback()
+            logging.error(f"Posting update error: {str(e)}")
+            return str(e)
+        finally:
+            cursor.close()
+
+    @staticmethod
+    def delete_posting(posting_id: int, company_id: int):
+        db = get_db()
+        cursor = db.cursor()
+
+        try:
+            # 채용공고 존재 여부 및 권한 확인
+            cursor.execute("""
+                SELECT posting_id 
+                FROM job_postings 
+                WHERE posting_id = %s AND company_id = %s AND status = 'active'
+            """, (posting_id, company_id))
+            
+            if not cursor.fetchone():
+                return "Posting not found or unauthorized"
+
+            # 채용공고 상태를 'inactive'로 변경
+            cursor.execute("""
+                UPDATE job_postings 
+                SET status = 'inactive' 
+                WHERE posting_id = %s AND company_id = %s
+            """, (posting_id, company_id))
+
+            # 관련된 지원 내역 상태 변경
+            cursor.execute("""
+                UPDATE applications 
+                SET status = 'cancelled' 
+                WHERE posting_id = %s AND status = 'pending'
+            """, (posting_id,))
+
+            # 북마크 삭제
+            cursor.execute("DELETE FROM bookmarks WHERE posting_id = %s", (posting_id,))
+
+            db.commit()
+            return None
+
+        except Exception as e:
+            db.rollback()
+            logging.error(f"Posting deletion error: {str(e)}")
             return str(e)
         finally:
             cursor.close() 

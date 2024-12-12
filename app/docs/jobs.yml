@@ -1,0 +1,375 @@
+tags:
+  - name: Jobs
+    description: 채용공고 관련 API
+
+paths:
+  /jobs:
+    get:
+      tags:
+        - Jobs
+      summary: 채용공고 목록 조회
+      description: 채용공고 목록을 검색, 필터링, 정렬하여 조회합니다.
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: 검색어 (제목, 내용)
+        - in: query
+          name: location_id
+          schema:
+            type: integer
+          description: 지역 ID
+        - in: query
+          name: categories
+          schema:
+            type: array
+            items:
+              type: integer
+          description: 직무 카테고리 ID 목록
+          style: form
+          explode: false
+        - in: query
+          name: tech_stacks
+          schema:
+            type: array
+            items:
+              type: integer
+          description: 기술 스택 ID 목록
+          style: form
+          explode: false
+        - in: query
+          name: sort_by
+          schema:
+            type: string
+            enum: [latest, views, deadline]
+          description: 정렬 기준
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+          description: 페이지 번호
+        - in: query
+          name: per_page
+          schema:
+            type: integer
+            default: 10
+          description: 페이지당 항목 수
+      responses:
+        '200':
+          description: 채용공고 목록 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      postings:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/JobPosting'
+                      total:
+                        type: integer
+                      page:
+                        type: integer
+                      per_page:
+                        type: integer
+                      total_pages:
+                        type: integer
+
+    post:
+      tags:
+        - Jobs
+      summary: 채용공고 등록
+      description: 새로운 채용공고를 등록합니다.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobPostingInput'
+      responses:
+        '201':
+          description: 채용공고 등록 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      posting_id:
+                        type: integer
+
+  /jobs/{posting_id}:
+    get:
+      tags:
+        - Jobs
+      summary: 채용공고 상세 조회
+      description: 특정 채용공고의 상세 정보를 조회합니다.
+      parameters:
+        - in: path
+          name: posting_id
+          required: true
+          schema:
+            type: integer
+          description: 채용공고 ID
+      responses:
+        '200':
+          description: 채용공고 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    $ref: '#/components/schemas/JobPosting'
+
+    put:
+      tags:
+        - Jobs
+      summary: 채용공고 수정
+      description: 특정 채용공고의 정보를 수정합니다. 회사 권한이 필요합니다.
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: posting_id
+          required: true
+          schema:
+            type: integer
+          description: 채용공고 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  example: "수정된 채용공고 제목"
+                job_description:
+                  type: string
+                  example: "수정된 채용공고 내용"
+                experience_level:
+                  type: string
+                  example: "경력 3년 이상"
+                education_level:
+                  type: string
+                  example: "학사 이상"
+                employment_type:
+                  type: string
+                  example: "정규직"
+                salary_info:
+                  type: string
+                  example: "4,500-5,500만원"
+                location_id:
+                  type: integer
+                  example: 1
+                deadline_date:
+                  type: string
+                  format: date
+                  example: "2024-12-31"
+                categories:
+                  type: array
+                  items:
+                    type: integer
+                  example: [1, 3]
+                tech_stacks:
+                  type: array
+                  items:
+                    type: integer
+                  example: [2, 4, 6]
+      responses:
+        '200':
+          description: 채용공고 수정 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Job posting updated successfully
+        '400':
+          description: 잘못된 요청 또는 권한 없음
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: error
+                  message:
+                    type: string
+                    example: Posting not found or unauthorized
+        '401':
+          description: 인증 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - Jobs
+      summary: 채용공고 삭제
+      description: 특정 채용공고를 삭제(비활성화)합니다. 회사 권한이 필요합니다.
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: posting_id
+          required: true
+          schema:
+            type: integer
+          description: 채용공고 ID
+      responses:
+        '200':
+          description: 채용공고 삭제 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Job posting deleted successfully
+        '400':
+          description: 잘못된 요청 또는 권한 없음
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: error
+                  message:
+                    type: string
+                    example: Posting not found or unauthorized
+        '401':
+          description: 인증 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    JobPosting:
+      type: object
+      properties:
+        posting_id:
+          type: integer
+        company_id:
+          type: integer
+        company_name:
+          type: string
+        company_description:
+          type: string
+        title:
+          type: string
+        job_description:
+          type: string
+        experience_level:
+          type: string
+        education_level:
+          type: string
+        employment_type:
+          type: string
+        salary_info:
+          type: string
+        location_id:
+          type: integer
+        city:
+          type: string
+        district:
+          type: string
+        deadline_date:
+          type: string
+          format: date
+        view_count:
+          type: integer
+        categories:
+          type: string
+        tech_stacks:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    JobPostingInput:
+      type: object
+      required:
+        - title
+        - job_description
+      properties:
+        title:
+          type: string
+          example: "백엔드 개발자 모집"
+        job_description:
+          type: string
+          example: "Python/Django 백엔드 개발자를 모집합니다."
+        experience_level:
+          type: string
+          example: "신입"
+        education_level:
+          type: string
+          example: "학사"
+        employment_type:
+          type: string
+          example: "정규직"
+        salary_info:
+          type: string
+          example: "4,000-5,000만원"
+        location_id:
+          type: integer
+          example: 1
+        deadline_date:
+          type: string
+          format: date
+          example: "2024-12-31"
+        categories:
+          type: array
+          items:
+            type: integer
+          example: [1, 2]
+        tech_stacks:
+          type: array
+          items:
+            type: integer
+          example: [1, 2, 3]
+
+    Error:
+      type: object
+      properties:
+        status:
+          type: string
+          example: error
+        message:
+          type: string
+          example: Error message here

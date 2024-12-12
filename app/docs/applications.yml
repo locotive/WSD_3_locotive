@@ -1,0 +1,157 @@
+tags:
+  - name: Applications
+    description: 채용공고 지원 관련 API
+
+paths:
+  /applications:
+    post:
+      tags:
+        - Applications
+      summary: 채용공고 지원
+      description: 특정 채용공고에 지원합니다.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - posting_id
+                - resume_id
+              properties:
+                posting_id:
+                  type: integer
+                  description: 지원할 채용공고 ID
+                resume_id:
+                  type: integer
+                  description: 제출할 이력서 ID
+      responses:
+        '201':
+          description: 지원 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      application_id:
+                        type: integer
+        '400':
+          description: 잘못된 요청
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      tags:
+        - Applications
+      summary: 지원 내역 조회
+      description: 사용자의 모든 지원 내역을 조회합니다.
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+          description: 페이지 번호
+        - in: query
+          name: per_page
+          schema:
+            type: integer
+            default: 10
+          description: 페이지당 항목 수
+      responses:
+        '200':
+          description: 지원 내역 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      applications:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Application'
+                      total:
+                        type: integer
+                      page:
+                        type: integer
+                      per_page:
+                        type: integer
+                      total_pages:
+                        type: integer
+
+  /applications/{application_id}:
+    delete:
+      tags:
+        - Applications
+      summary: 지원 취소
+      description: 특정 지원 내역을 취소합니다.
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: application_id
+          required: true
+          schema:
+            type: integer
+          description: 취소할 지원 ID
+      responses:
+        '200':
+          description: 지원 취소 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Application cancelled successfully
+
+components:
+  schemas:
+    Application:
+      type: object
+      properties:
+        application_id:
+          type: integer
+        user_id:
+          type: integer
+        posting_id:
+          type: integer
+        resume_id:
+          type: integer
+        status:
+          type: string
+          enum: [pending, accepted, rejected, cancelled]
+        applied_at:
+          type: string
+          format: date-time
+        posting_title:
+          type: string
+        company_name:
+          type: string
+        resume_title:
+          type: string
+        deadline_date:
+          type: string
+          format: date 

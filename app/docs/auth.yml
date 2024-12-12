@@ -1,0 +1,230 @@
+tags:
+  - name: Authentication
+    description: 회원 인증 및 관리 관련 API
+
+paths:
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: 회원 가입
+      description: 새로운 사용자 계정을 생성합니다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - name
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  format: password
+                  example: mypassword123
+                name:
+                  type: string
+                  example: 홍길동
+                phone:
+                  type: string
+                  example: "01012345678"
+                birth_date:
+                  type: string
+                  format: date
+                  example: "1990-01-01"
+      responses:
+        '201':
+          description: 회원가입 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      user_id:
+                        type: integer
+                      email:
+                        type: string
+                      access_token:
+                        type: string
+                      token_type:
+                        type: string
+        '400':
+          description: 잘못된 요청
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: 로그인
+      description: 사용자 인증 및 토큰 발급
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: 로그인 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      access_token:
+                        type: string
+                      token_type:
+                        type: string
+
+  /auth/profile:
+    get:
+      tags:
+        - Authentication
+      summary: 회원 정보 조회
+      description: 현재 로그인한 사용자의 프로필 정보를 조회합니다.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 프로필 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      user_id:
+                        type: integer
+                      email:
+                        type: string
+                      name:
+                        type: string
+                      phone:
+                        type: string
+                      birth_date:
+                        type: string
+                        format: date
+                      created_at:
+                        type: string
+                        format: date-time
+                      application_count:
+                        type: integer
+                      bookmark_count:
+                        type: integer
+
+    put:
+      tags:
+        - Authentication
+      summary: 회원 정보 수정
+      description: 현재 로그인한 사용자의 프로필 정보를 수정합니다.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                phone:
+                  type: string
+                birth_date:
+                  type: string
+                  format: date
+                current_password:
+                  type: string
+                new_password:
+                  type: string
+      responses:
+        '200':
+          description: 프로필 수정 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Profile updated successfully
+
+    delete:
+      tags:
+        - Authentication
+      summary: 회원 탈퇴
+      description: 현재 로그인한 사용자의 계정을 비활성화합니다.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 회원 탈퇴 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: User account deactivated successfully
+
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        status:
+          type: string
+          example: error
+        message:
+          type: string
+          example: Error message here
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT 
