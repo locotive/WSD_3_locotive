@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, make_response
+from flask import Blueprint, request, jsonify, make_response, g
 from app.common.middleware import login_required
 from app.database import get_db
 from app.auth.utils import hash_password, verify_password, generate_tokens
@@ -91,7 +91,9 @@ def login():
 @login_required
 def get_profile():
     try:
-        user, error = User.get_user_profile(g.user_id)
+        user_id = g.current_user['user_id']
+        user, error = User.get_user_profile(user_id)
+        
         if error:
             return make_response(jsonify({
                 "status": "error",
