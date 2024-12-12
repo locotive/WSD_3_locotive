@@ -2,6 +2,7 @@ from prometheus_client import Counter, Histogram, Gauge
 import time
 from functools import wraps
 from flask import request, g
+import psutil
 
 class APIMetrics:
     def __init__(self):
@@ -52,6 +53,15 @@ class APIMetrics:
             'api_memory_usage_bytes',
             'Memory usage in bytes'
         )
+
+    def update_request_metrics(self, request, status_code=200):
+        """요청 메트릭스 업데이트"""
+        endpoint = request.endpoint or 'unknown'
+        self.request_count.labels(
+            method=request.method,
+            endpoint=endpoint,
+            status=status_code
+        ).inc()
 
     def track_request(self):
         """요청 추적"""
@@ -104,15 +114,12 @@ class APIMetrics:
             error_rate = error_count / total_count
             self.error_rate.labels(endpoint=endpoint).set(error_rate)
 
-    def update_db_metrics(self, pool_size, active_connections):
+    def update_db_metrics(self, pool_size):
         """DB 메트릭 업데이트"""
-        if pool_size > 0:
-            usage_ratio = active_connections / pool_size
-            self.db_pool_usage.set(usage_ratio)
+        self.db_pool_usage.set(pool_size)
 
     def update_memory_metrics(self):
         """메모리 사용량 메트릭 업데이트"""
-        import psutil
         process = psutil.Process()
         memory_info = process.memory_info()
         self.memory_usage.set(memory_info.rss)

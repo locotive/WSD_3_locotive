@@ -111,17 +111,18 @@ def create_app():
     @app.after_request
     def after_request(response):
         # 메트릭스 업데이트
-        metrics.update_request_metrics(request)
+        metrics.update_request_metrics(request, response.status_code)
         
         # 응답 시간 기록
         if hasattr(g, 'start_time'):
             duration = time.time() - g.start_time
+            metrics.update_latency_metrics(request.endpoint, duration)
             logger.log_performance(request, duration * 1000)  # ms로 변환
         
         # 응답 로깅
         logger.log_response(request, response)
         
-        # DB 커넥션 풀 메트릭스 업데이트 (이 부분 수정)
+        # DB 커넥션 풀 메트릭스 업데이트
         try:
             metrics.update_db_metrics(db_pool.pool_size)
         except:
