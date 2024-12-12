@@ -9,16 +9,17 @@ from pytz import timezone
 
 class CrawlingScheduler:
     def __init__(self):
-        self.scheduler = BackgroundScheduler(timezone=timezone('Asia/Seoul'))
+        self.scheduler = BackgroundScheduler()
         self.crawler = SaraminCrawler()
         self.logger = logging.getLogger('scheduler')
+        self.tz = timezone('Asia/Seoul')
 
     def start(self):
         """스케줄러 시작"""
         # 매일 자정에 크롤링 실행
         self.scheduler.add_job(
             self._daily_crawl,
-            trigger=CronTrigger(hour=0, minute=0),
+            trigger=CronTrigger(hour=0, minute=0, timezone=self.tz),
             id='daily_crawling'
         )
         
