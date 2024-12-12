@@ -9,32 +9,38 @@ def login_required(f):
     def decorated_function(*args, **kwargs):
         try:
             auth_header = request.headers.get('Authorization')
-            logging.info(f"[Middleware] Auth header received: {auth_header}")
+            logging.info(f"[Middleware] Request headers: {dict(request.headers)}")
             
             if not auth_header:
-                logging.error("[Middleware] No Authorization header")
-                return jsonify({"status": "error", "message": "No Authorization header"}), 401
+                return jsonify({
+                    "status": "error",
+                    "message": "No Authorization header"
+                }), 401
                 
             if not auth_header.startswith('Bearer '):
-                logging.error("[Middleware] Invalid Authorization header format")
-                return jsonify({"status": "error", "message": "Invalid Authorization format"}), 401
+                return jsonify({
+                    "status": "error",
+                    "message": "Invalid Authorization format"
+                }), 401
 
             token = auth_header.split(' ')[1]
-            logging.info(f"[Middleware] Token extracted: {token[:10]}...")
             
             try:
                 secret_key = current_app.config.get('JWT_SECRET_KEY')
                 if not secret_key:
-                    logging.error("[Middleware] JWT_SECRET_KEY not found in config")
-                    return jsonify({"status": "error", "message": "Server configuration error"}), 500
+                    return jsonify({
+                        "status": "error",
+                        "message": "Server configuration error"
+                    }), 500
                 
-                logging.info("[Middleware] Attempting to decode token...")
                 payload = jwt.decode(token, secret_key, algorithms=['HS256'])
                 logging.info(f"[Middleware] Token payload: {payload}")
                 
                 if 'user_id' not in payload:
-                    logging.error("[Middleware] user_id not found in token payload")
-                    return jsonify({"status": "error", "message": "Invalid token content"}), 401
+                    return jsonify({
+                        "status": "error",
+                        "message": "Invalid token content"
+                    }), 401
                 
                 user_id = payload['user_id']
                 logging.info(f"[Middleware] User ID from token: {user_id}")
@@ -53,25 +59,38 @@ def login_required(f):
                 cursor.close()
 
                 if not user:
-                    logging.error(f"[Middleware] User not found or not active: {user_id}")
-                    return jsonify({"status": "error", "message": "User not found"}), 401
+                    return jsonify({
+                        "status": "error",
+                        "message": "User not found"
+                    }), 401
 
+                logging.info(f"[Middleware] User data fetched: {user}")
                 g.current_user = user
-                logging.info(f"[Middleware] User authenticated: {user['user_id']}")
+                
                 return f(*args, **kwargs)
 
             except jwt.ExpiredSignatureError:
-                logging.error("[Middleware] Token has expired")
-                return jsonify({"status": "error", "message": "Token has expired"}), 401
+                return jsonify({
+                    "status": "error",
+                    "message": "Token has expired"
+                }), 401
             except jwt.InvalidTokenError as e:
-                logging.error(f"[Middleware] Invalid token: {str(e)}")
-                return jsonify({"status": "error", "message": f"Invalid token: {str(e)}"}), 401
+                return jsonify({
+                    "status": "error",
+                    "message": f"Invalid token: {str(e)}"
+                }), 401
             except Exception as e:
                 logging.error(f"[Middleware] Token verification error: {str(e)}")
-                return jsonify({"status": "error", "message": "Token verification failed"}), 401
+                return jsonify({
+                    "status": "error",
+                    "message": "Token verification failed"
+                }), 401
 
         except Exception as e:
             logging.error(f"[Middleware] Middleware error: {str(e)}")
-            return jsonify({"status": "error", "message": "Server error"}), 500
+            return jsonify({
+                "status": "error",
+                "message": "Server error"
+            }), 500
 
     return decorated_function 
