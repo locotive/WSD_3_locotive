@@ -117,7 +117,7 @@ def create_app():
         if hasattr(g, 'start_time'):
             duration = time.time() - g.start_time
             metrics.update_latency_metrics(request.endpoint, duration)
-            logger.log_performance(request, duration * 1000)  # ms로 변환
+            logger.log_performance(duration * 1000)  # request 인자 제거, ms로 변환
         
         # 응답 로깅
         logger.log_response(request, response)
