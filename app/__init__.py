@@ -59,20 +59,7 @@ def create_app():
     app.register_blueprint(companies_bp, url_prefix='/companies')
     app.register_blueprint(crawling_bp, url_prefix='/crawling')
 
-    # Swagger 설정
-    SWAGGER_URL = '/api/docs'
-    API_URL = '/static/swagger.json'
-    
-    swaggerui_blueprint = get_swaggerui_blueprint(
-        SWAGGER_URL,
-        API_URL,
-        config={
-            'app_name': "Job Board API"
-        }
-    )
-    app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
-    
-    # swagger.json 파일 생성 로직
+    # 먼저 swagger.json 생성
     swagger_data = {
         "openapi": "3.0.0",
         "info": {
@@ -137,7 +124,7 @@ def create_app():
         }
     }
     
-    # YAML 파일들을 로드하고 병합
+    # YAML 파일 병합
     yaml_files = ['auth.yml', 'jobs.yml', 'applications.yml', 'bookmarks.yml']
     for yaml_file in yaml_files:
         file_path = os.path.join('app', 'docs', yaml_file)
@@ -166,12 +153,23 @@ def create_app():
                         existing_tags[tag['name']] = tag
                     swagger_data['tags'] = list(existing_tags.values())
     
-    # static 디렉토리가 없으면 생성
+    # static 디렉토리 생성 및 파일 저장
     os.makedirs('app/static', exist_ok=True)
-    
-    # swagger.json 파일 저장
     with open('app/static/swagger.json', 'w', encoding='utf-8') as f:
         json.dump(swagger_data, f, ensure_ascii=False, indent=2)
+    
+    # 그 다음 Swagger UI Blueprint 등록
+    SWAGGER_URL = '/api/docs'
+    API_URL = '/static/swagger.json'
+    
+    swaggerui_blueprint = get_swaggerui_blueprint(
+        SWAGGER_URL,
+        API_URL,
+        config={
+            'app_name': "Job Board API"
+        }
+    )
+    app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
     
     @app.before_request
     def before_request():
