@@ -7,15 +7,15 @@ load_dotenv()
 class Config:
     # Database configuration
     DB_CONFIG = {
-        "host": os.getenv('DB_HOST', '113.198.66.75'),
-        "user": os.getenv('DB_USER', 'myuser'),
-        "password": os.getenv('DB_PASSWORD', 'mypassword'),
-        "database": os.getenv('DB_NAME', 'mydb'),
-        "port": int(os.getenv('DB_PORT', 13102))
-    }
+    "host": os.getenv("DB_HOST"),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+    "database": os.getenv("DB_NAME"),
+    "port": int(os.getenv("DB_PORT")),
+}
 
     # JWT configuration
-    SECRET_KEY = os.getenv('SECRET_KEY', 'your-secret-key')
+    SECRET_KEY = os.getenv("SECRET_KEY")
     ALGORITHM = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES = 60
     REFRESH_TOKEN_EXPIRE_DAYS = 7
