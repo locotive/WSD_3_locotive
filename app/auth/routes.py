@@ -31,34 +31,35 @@ def register_user():
 
         # 사용자 생성 시도
         try:
-            result, error = User.create_user(
+            result = User.create_user(
                 email=data['email'],
                 password=data['password'],
                 name=data['name']
             )
             
             # 디버깅을 위한 로그 추가
-            logging.info(f"Create user result: {result}, error: {error}")
+            logging.info(f"Create user result: {result}")
             
-            if error:
-                return make_response(jsonify({
-                    "status": "error",
-                    "code": "UserCreationError",
-                    "message": str(error)
-                }), 400)
-            
-            if not result:
+            if result is False:
                 return make_response(jsonify({
                     "status": "error",
                     "code": "UserCreationError",
                     "message": "Failed to create user"
                 }), 400)
+            
+            if isinstance(result, str):  # 에러 메시지인 경우
+                return make_response(jsonify({
+                    "status": "error",
+                    "code": "UserCreationError",
+                    "message": result
+                }), 400)
 
-            # 성공한 경우
+            # 성공한 경우 (result가 사용자 데이터인 경우)
             return make_response(jsonify({
                 "status": "success",
-                **result
-            }), 200)
+                "message": "User registered successfully",
+                "data": result
+            }), 201)
 
         except Exception as e:
             logging.error(f"User creation error: {str(e)}")
