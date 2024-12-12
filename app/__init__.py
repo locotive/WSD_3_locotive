@@ -20,6 +20,7 @@ from app.monitoring.metrics import metrics
 from prometheus_client import make_wsgi_app
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from app.crawling.scheduler import scheduler
+from app.crawling.routes import crawling_bp
 import time
 import atexit
 
@@ -53,6 +54,7 @@ def create_app():
     app.register_blueprint(applications_bp, url_prefix='/applications')
     app.register_blueprint(bookmarks_bp, url_prefix='/bookmarks')
     app.register_blueprint(companies_bp, url_prefix='/companies')
+    app.register_blueprint(crawling_bp, url_prefix='/crawling')
 
     # Register Swagger UI blueprint
     SWAGGER_URL = '/api/docs'
