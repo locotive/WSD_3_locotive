@@ -1,5 +1,5 @@
 from functools import wraps
-from flask import request, abort, make_response, current_app, jsonify
+from flask import request, abort, make_response, current_app, jsonify, Response
 import html
 import re
 from urllib.parse import urlparse
@@ -99,30 +99,30 @@ def validate_json():
         def wrapped(*args, **kwargs):
             try:
                 if not request.is_json:
-                    return jsonify({
+                    return make_response(jsonify({
                         "status": "error",
                         "code": "InvalidContentType",
                         "message": "Content-Type must be application/json"
-                    }), 400
+                    }), 400)
                 
-                # force=True를 사용하여 JSON 파싱 강제
                 data = request.get_json(force=True)
                 if data is None:
-                    return jsonify({
+                    return make_response(jsonify({
                         "status": "error",
                         "code": "InvalidJSON",
                         "message": "Invalid JSON data"
-                    }), 400
+                    }), 400)
                     
-                return f(*args, **kwargs)
+                response = f(*args, **kwargs)
+                return response if isinstance(response, Response) else make_response(response)
                 
             except Exception as e:
                 logging.error(f"JSON validation error: {str(e)}")
-                return jsonify({
+                return make_response(jsonify({
                     "status": "error",
                     "code": type(e).__name__,
                     "message": str(e)
-                }), 400
+                }), 400)
                 
         return wrapped
     return decorator

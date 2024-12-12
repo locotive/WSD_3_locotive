@@ -1,8 +1,9 @@
 from prometheus_client import Counter, Histogram, Gauge
 import time
 from functools import wraps
-from flask import request, g
+from flask import request, g, make_response, Response, jsonify
 import psutil
+import logging
 
 class APIMetrics:
     def __init__(self):
@@ -131,6 +132,45 @@ class APIMetrics:
                 method=request.method,
                 endpoint=endpoint
             ).observe(duration)
+
+def log_metrics():
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            start_time = time.time()
+            
+            try:
+                response = f(*args, **kwargs)
+                
+                # response가 tuple인 경우 Response 객체로 변환
+                if isinstance(response, tuple):
+                    response = make_response(*response)
+                elif not isinstance(response, Response):
+                    response = make_response(response)
+                
+                duration = (time.time() - start_time) * 1000
+                
+                logging.info({
+                    "type": "performance_metric",
+                    "endpoint": request.endpoint,
+                    "method": request.method,
+                    "path": request.path,
+                    "status_code": response.status_code,
+                    "duration_ms": duration
+                })
+                
+                return response
+                
+            except Exception as e:
+                logging.error(f"Metrics logging error: {str(e)}")
+                return make_response(jsonify({
+                    "status": "error",
+                    "code": type(e).__name__,
+                    "message": str(e)
+                }), 500)
+                
+        return wrapped
+    return decorator
 
 # 싱글톤 인스턴스
 metrics = APIMetrics() 
