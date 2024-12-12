@@ -100,33 +100,57 @@ def validate_json():
         @wraps(f)
         def wrapped(*args, **kwargs):
             try:
-                if not request.is_json:
-                    return make_response(jsonify({
-                        "status": "error",
-                        "code": "InvalidContentType",
-                        "message": "Content-Type must be application/json"
-                    }), 400)
-                
-                # JSON 파싱 시도
-                try:
-                    request.get_json()
-                except Exception as e:
-                    return make_response(jsonify({
-                        "status": "error",
-                        "code": "InvalidJSON",
-                        "message": "Invalid JSON data"
-                    }), 400)
-                    
+                if request.is_json:
+                    # force=False, silent=True로 설정
+                    request.get_json(force=False, silent=True)
                 return f(*args, **kwargs)
-                
             except Exception as e:
                 logging.error(f"JSON validation error: {str(e)}")
                 return make_response(jsonify({
                     "status": "error",
-                    "code": type(e).__name__,
-                    "message": str(e)
+                    "message": "Invalid JSON format"
                 }), 400)
+        return wrapped
+    return decorator
+
+def sanitize_input():
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            try:
+                if request.is_json:
+                    data = request.get_json(force=False, silent=True)
+                    if data:
+                        # 데이터 정제 로직
+                        for key in data:
+                            if isinstance(data[key], str):
+                                data[key] = data[key].strip()
+                return f(*args, **kwargs)
+            except Exception as e:
+                logging.error(f"Input sanitization error: {str(e)}")
+                return make_response(jsonify({
+                    "status": "error",
+                    "message": "Invalid input data"
+                }), 400)
+        return wrapped
+    return decorator
+
+def add_security_headers():
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            response = f(*args, **kwargs)
+            if isinstance(response, tuple):
+                response = make_response(response[0], response[1])
+            else:
+                response = make_response(response)
                 
+            response.headers['X-Content-Type-Options'] = 'nosniff'
+            response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+            response.headers['X-XSS-Protection'] = '1; mode=block'
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+            response.headers['Content-Security-Policy'] = "default-src 'self'"
+            return response
         return wrapped
     return decorator
 
