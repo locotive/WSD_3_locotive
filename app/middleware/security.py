@@ -1,10 +1,11 @@
 from functools import wraps
-from flask import request, abort, make_response, current_app
+from flask import request, abort, make_response, current_app, jsonify
 import html
 import re
 from urllib.parse import urlparse
 import hashlib
 import time
+import logging
 
 class SecurityMiddleware:
     def __init__(self):
@@ -91,6 +92,40 @@ class SecurityMiddleware:
                 return f(*args, **kwargs)
             return wrapped
         return decorator
+
+def validate_json():
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            try:
+                if not request.is_json:
+                    return jsonify({
+                        "status": "error",
+                        "code": "InvalidContentType",
+                        "message": "Content-Type must be application/json"
+                    }), 400
+                
+                # force=True를 사용하여 JSON 파싱 강제
+                data = request.get_json(force=True)
+                if data is None:
+                    return jsonify({
+                        "status": "error",
+                        "code": "InvalidJSON",
+                        "message": "Invalid JSON data"
+                    }), 400
+                    
+                return f(*args, **kwargs)
+                
+            except Exception as e:
+                logging.error(f"JSON validation error: {str(e)}")
+                return jsonify({
+                    "status": "error",
+                    "code": type(e).__name__,
+                    "message": str(e)
+                }), 400
+                
+        return wrapped
+    return decorator
 
 # 싱글톤 인스턴스
 security = SecurityMiddleware() 

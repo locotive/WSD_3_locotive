@@ -9,31 +9,42 @@ auth_bp = Blueprint('auth', __name__)
 @auth_bp.route('/register', methods=['POST'])
 def register_user():
     try:
-        # JSON 데이터 파싱
-        data = request.get_json(silent=True)
+        data = request.get_json()
+        logging.info(f"Received registration data: {data}")
         
-        if data is None:
+        if not data:
             return jsonify({
                 "status": "error",
-                "code": "InvalidJSON",
-                "message": "Invalid JSON data in request"
+                "code": "InvalidData",
+                "message": "No JSON data received"
             }), 400
-
-        # 필수 필드 검증
+            
+        # 필수 필드 존재 확인
         required_fields = ['email', 'password', 'name']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({
-                    "status": "error",
-                    "code": "MissingField",
-                    "message": f"Missing required field: {field}"
-                }), 400
-
+        missing_fields = [field for field in required_fields if field not in data]
+        if missing_fields:
+            return jsonify({
+                "status": "error",
+                "code": "MissingFields",
+                "message": f"Missing required fields: {', '.join(missing_fields)}"
+            }), 400
+            
+        # 필수 필드 검증
+        error = validate_user_data(data)
+        if error:
+            return jsonify({
+                "status": "error",
+                "code": "ValidationError",
+                "message": error
+            }), 400
+            
         # 사용자 생성
         error = User.create_user(
             email=data['email'],
             password=data['password'],
-            name=data['name']
+            name=data['name'],
+            phone=data.get('phone'),
+            birth_date=data.get('birth_date')
         )
         
         if error:
@@ -42,17 +53,17 @@ def register_user():
                 "code": "UserCreationError",
                 "message": error
             }), 400
-
+            
         # 토큰 생성
         access_token = create_access_token({"email": data['email']})
         refresh_token = create_refresh_token({"email": data['email']})
-
+        
         return jsonify({
             "status": "success",
             "access_token": access_token,
             "refresh_token": refresh_token
-        }), 200
-
+        })
+        
     except Exception as e:
         logging.error(f"Registration error: {str(e)}")
         return jsonify({
