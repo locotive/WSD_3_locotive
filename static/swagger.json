@@ -124,6 +124,23 @@
             "type": "string"
           }
         }
+      },
+      "JobPosting": {
+        "type": "object",
+        "properties": {
+          "posting_id": { "type": "integer" },
+          "title": { "type": "string" },
+          "company_name": { "type": "string" },
+          "location": { "type": "string" },
+          "experience_level": { "type": "string" },
+          "education_level": { "type": "string" },
+          "job_description": { "type": "string" },
+          "tech_stacks": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "deadline_date": { "type": "string", "format": "date" }
+        }
       }
     }
   },
@@ -477,6 +494,101 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/jobs": {
+      "get": {
+        "tags": ["Jobs"],
+        "summary": "채용공고 목록 조회",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": { "type": "integer" }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "location_id",
+            "in": "query",
+            "schema": { "type": "integer" }
+          },
+          {
+            "name": "tech_stacks",
+            "in": "query",
+            "schema": { 
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "채용공고 목록",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/JobPosting" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/applications": {
+      "post": {
+        "tags": ["Applications"],
+        "summary": "채용공고 지원",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["posting_id"],
+                "properties": {
+                  "posting_id": { "type": "integer" },
+                  "resume_id": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "지원 성공"
+          }
+        }
+      }
+    },
+    "/bookmarks": {
+      "post": {
+        "tags": ["Bookmarks"],
+        "summary": "북마크 추가/제거",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["posting_id"],
+                "properties": {
+                  "posting_id": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "북마크 토글 성공"
           }
         }
       }
