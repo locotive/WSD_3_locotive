@@ -30,7 +30,7 @@ import os
 def create_app():
     app = Flask(__name__,
         static_url_path='/static',
-        static_folder='../static'
+        static_folder='static'
     )
     CORS(app)
 
