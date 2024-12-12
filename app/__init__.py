@@ -220,13 +220,38 @@ def create_app():
             wrapped = metrics.track_request()(f)
             wrapped = api_rate_limit()(wrapped)
             
-            # Authorization 헤더 검사
-            auth_header = request.headers.get('Authorization')
-            if not auth_header and not request.path.startswith(('/auth/login', '/auth/register')):
-                return jsonify({"message": "Authorization header is missing"}), 401
-            
-            # 보안 미들웨어 적용
-            if not request.path.startswith(('/static', '/metrics')):
+            # 보안 미들웨어 적용 (로그인/회원가입 제외)
+            if not request.path.startswith(('/auth/login', '/auth/register', '/static', '/metrics')):
+                # Authorization 헤더 검사
+                auth_header = request.headers.get('Authorization')
+                if not auth_header:
+                    return jsonify({
+                        "status": "error",
+                        "message": "Authentication required"
+                    }), 401
+                    
+                # Bearer 토큰 검사
+                try:
+                    if not auth_header.startswith('Bearer '):
+                        return jsonify({
+                            "status": "error",
+                            "message": "Invalid token format"
+                        }), 401
+                        
+                    # 토큰 추출 및 검증
+                    token = auth_header.split(' ')[1]
+                    if not token:
+                        return jsonify({
+                            "status": "error",
+                            "message": "Token is missing"
+                        }), 401
+                        
+                except Exception as e:
+                    return jsonify({
+                        "status": "error",
+                        "message": f"Authentication error: {str(e)}"
+                    }), 401
+                    
                 wrapped = security.validate_request()(wrapped)
                 wrapped = security.security_headers()(wrapped)
             
