@@ -116,6 +116,7 @@ def get_profile():
 @login_required
 def update_profile():
     try:
+        user_id = g.current_user['user_id']
         data = request.get_json()
         if not data:
             return make_response(jsonify({
@@ -123,7 +124,7 @@ def update_profile():
                 "message": "No data provided"
             }), 400)
 
-        error = User.update_profile(g.user_id, data)
+        error = User.update_profile(user_id, data)
         if error:
             return make_response(jsonify({
                 "status": "error",
@@ -146,7 +147,8 @@ def update_profile():
 @login_required
 def delete_user():
     try:
-        error = User.delete_user(g.user_id)
+        user_id = g.current_user['user_id']
+        error = User.delete_user(user_id)
         if error:
             return make_response(jsonify({
                 "status": "error",
