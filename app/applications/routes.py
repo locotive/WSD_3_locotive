@@ -1,76 +1,181 @@
 from flask import Blueprint, request, jsonify, g
-from werkzeug.utils import secure_filename
 from app.common.middleware import login_required
-from app.applications.models import Application
+from app.database import get_db
+import logging
+from datetime import datetime
 
 applications_bp = Blueprint('applications', __name__)
 
-@applications_bp.route('/', methods=['POST'])
+@applications_bp.route('/apply', methods=['POST'])
 @login_required
-def apply_for_job():
+def apply_job():
     try:
-        if request.content_type.startswith('multipart/form-data'):
-            posting_id = request.form.get('posting_id')
-            resume_id = request.form.get('resume_id')
-            resume_file = request.files.get('resume_file')
-        else:
-            data = request.get_json()
-            posting_id = data.get('posting_id')
-            resume_id = data.get('resume_id')
-            resume_file = None
+        data = request.get_json()
+        if not data.get('job_id'):
+            return jsonify({
+                "status": "error",
+                "message": "Job ID is required"
+            }), 400
 
-        if not posting_id:
-            return jsonify({"message": "Posting ID is required"}), 400
+        db = get_db()
+        cursor = db.cursor(dictionary=True)
 
-        if not resume_id and not resume_file:
-            return jsonify({"message": "Either resume_id or resume_file must be provided"}), 400
+        # 이미 지원했는지 확인
+        cursor.execute("""
+            SELECT id FROM applications 
+            WHERE user_id = %s AND job_id = %s AND status != 'cancelled'
+        """, (g.user_id, data['job_id']))
+        
+        if cursor.fetchone():
+            return jsonify({
+                "status": "error",
+                "message": "Already applied to this job"
+            }), 409
 
-        resume_file_content = None
-        if resume_file:
-            if not resume_file.filename.lower().endswith('.pdf'):
-                return jsonify({"message": "Only PDF files are allowed"}), 400
-            resume_file_content = resume_file.read()
+        # 채용공고가 유효한지 확인
+        cursor.execute("""
+            SELECT deadline FROM jobs 
+            WHERE id = %s AND status = 'active'
+        """, (data['job_id'],))
+        
+        job = cursor.fetchone()
+        if not job:
+            return jsonify({
+                "status": "error",
+                "message": "Invalid or expired job posting"
+            }), 404
 
-        application_id, error = Application.create_application(
-            g.current_user['user_id'],
-            posting_id,
-            resume_id,
-            resume_file_content
-        )
+        if job['deadline'] < datetime.now():
+            return jsonify({
+                "status": "error",
+                "message": "Job application deadline has passed"
+            }), 400
 
-        if error:
-            return jsonify({"message": error}), 400
+        # 지원 생성
+        cursor.execute("""
+            INSERT INTO applications (
+                user_id, job_id, status, created_at
+            ) VALUES (%s, %s, 'applied', NOW())
+        """, (g.user_id, data['job_id']))
+        
+        application_id = cursor.lastrowid
+        db.commit()
 
         return jsonify({
-            "message": "Application submitted successfully",
-            "application_id": application_id
+            "status": "success",
+            "message": "Successfully applied to job",
+            "data": {"application_id": application_id}
+        }), 201
+
+    except Exception as e:
+        db.rollback()
+        logging.error(f"Job application error: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+    finally:
+        cursor.close()
+
+@applications_bp.route('/cancel/<int:application_id>', methods=['POST'])
+@login_required
+def cancel_application(application_id):
+    try:
+        db = get_db()
+        cursor = db.cursor(dictionary=True)
+
+        # 지원 내역 확인
+        cursor.execute("""
+            SELECT status FROM applications 
+            WHERE id = %s AND user_id = %s
+        """, (application_id, g.user_id))
+        
+        application = cursor.fetchone()
+        if not application:
+            return jsonify({
+                "status": "error",
+                "message": "Application not found"
+            }), 404
+
+        if application['status'] == 'cancelled':
+            return jsonify({
+                "status": "error",
+                "message": "Application already cancelled"
+            }), 400
+
+        # 지원 취소
+        cursor.execute("""
+            UPDATE applications 
+            SET status = 'cancelled', updated_at = NOW() 
+            WHERE id = %s AND user_id = %s
+        """, (application_id, g.user_id))
+        
+        db.commit()
+
+        return jsonify({
+            "status": "success",
+            "message": "Application cancelled successfully"
         })
 
     except Exception as e:
-        return jsonify({"message": str(e)}), 500
+        db.rollback()
+        logging.error(f"Application cancellation error: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+    finally:
+        cursor.close()
 
-@applications_bp.route('/', methods=['GET'])
+@applications_bp.route('/history', methods=['GET'])
 @login_required
-def list_applications():
-    status_filter = request.args.get('status_filter')
-    sort_by_date = request.args.get('sort_by_date', 'desc')
-    page = int(request.args.get('page', 1))
+def get_application_history():
+    try:
+        db = get_db()
+        cursor = db.cursor(dictionary=True)
 
-    applications = Application.get_applications(
-        g.current_user['user_id'],
-        status_filter,
-        sort_by_date,
-        page
-    )
-    
-    return jsonify(applications)
+        # 페이지네이션
+        page = int(request.args.get('page', 1))
+        per_page = int(request.args.get('per_page', 20))
+        offset = (page - 1) * per_page
 
-@applications_bp.route('/<int:id>', methods=['DELETE'])
-@login_required
-def cancel_application(id):
-    error = Application.delete_application(id, g.current_user['user_id'])
-    
-    if error:
-        return jsonify({"message": error}), 400 if "Not authorized" in error else 404
+        # 지원 내역 조회
+        cursor.execute("""
+            SELECT SQL_CALC_FOUND_ROWS 
+                a.*, j.title as job_title, 
+                c.name as company_name
+            FROM applications a
+            JOIN jobs j ON a.job_id = j.id
+            JOIN companies c ON j.company_id = c.id
+            WHERE a.user_id = %s
+            ORDER BY a.created_at DESC
+            LIMIT %s OFFSET %s
+        """, (g.user_id, per_page, offset))
+        
+        applications = cursor.fetchall()
 
-    return jsonify({"message": "Application cancelled successfully"}) 
+        # 전체 결과 수 조회
+        cursor.execute("SELECT FOUND_ROWS()")
+        total = cursor.fetchone()['FOUND_ROWS()']
+
+        return jsonify({
+            "status": "success",
+            "data": {
+                "applications": applications,
+                "pagination": {
+                    "page": page,
+                    "per_page": per_page,
+                    "total": total,
+                    "pages": (total + per_page - 1) // per_page
+                }
+            }
+        })
+
+    except Exception as e:
+        logging.error(f"Application history fetch error: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+    finally:
+        cursor.close() 

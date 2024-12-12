@@ -1,69 +1,109 @@
-from flask import Blueprint, request, jsonify, g
+from flask import Blueprint, request, jsonify
 from app.common.middleware import login_required
-from app.jobs.models import Job
-from app.jobs.utils import validate_job_data, prepare_job_filters
+from app.database import get_db
+import logging
 
 jobs_bp = Blueprint('jobs', __name__)
 
-@jobs_bp.route('/', methods=['GET'])
-def list_jobs():
-    page = int(request.args.get('page', 1))
-    filters = prepare_job_filters(request.args)
-    
-    jobs = Job.list_jobs(filters, page)
-    return jsonify({
-        "jobs": jobs,
-        "page": page,
-        "filters": filters
-    })
+@jobs_bp.route('', methods=['GET'])
+def get_jobs():
+    try:
+        db = get_db()
+        cursor = db.cursor(dictionary=True)
 
-@jobs_bp.route('/<int:id>', methods=['GET'])
-def get_job_detail(id):
-    job = Job.get_job_detail(id)
-    if not job:
-        return jsonify({"message": "Job not found"}), 404
-    return jsonify(job)
+        # 페이지네이션 파라미터
+        page = int(request.args.get('page', 1))
+        per_page = int(request.args.get('per_page', 20))
+        offset = (page - 1) * per_page
 
-@jobs_bp.route('/', methods=['POST'])
-@login_required
-def create_job():
-    data = request.get_json()
-    if not data:
-        return jsonify({"message": "No input data provided"}), 400
+        # 필터링 파라미터
+        filters = {
+            'location': request.args.get('location'),
+            'experience': request.args.get('experience'),
+            'education': request.args.get('education'),
+            'salary_min': request.args.get('salary_min'),
+            'salary_max': request.args.get('salary_max'),
+            'keyword': request.args.get('keyword')
+        }
 
-    error = validate_job_data(data)
-    if error:
-        return jsonify({"message": error}), 400
+        # 정렬 파라미터
+        sort = request.args.get('sort', 'created_at')
+        order = request.args.get('order', 'desc')
 
-    result = Job.create_job(data)
-    if isinstance(result, str):
-        return jsonify({"message": result}), 500
+        # 기본 쿼리
+        query = """
+            SELECT SQL_CALC_FOUND_ROWS 
+                j.*, c.name as company_name, 
+                c.location as company_location
+            FROM jobs j
+            JOIN companies c ON j.company_id = c.id
+            WHERE j.status = 'active'
+        """
+        params = []
 
-    return jsonify({
-        "message": "Job posting created successfully",
-        "posting_id": result
-    })
+        # 필터 조건 추가
+        if filters['location']:
+            query += " AND c.location LIKE %s"
+            params.append(f"%{filters['location']}%")
+        
+        if filters['experience']:
+            query += " AND j.experience = %s"
+            params.append(filters['experience'])
+            
+        if filters['education']:
+            query += " AND j.education = %s"
+            params.append(filters['education'])
+            
+        if filters['salary_min']:
+            query += " AND j.salary >= %s"
+            params.append(filters['salary_min'])
+            
+        if filters['salary_max']:
+            query += " AND j.salary <= %s"
+            params.append(filters['salary_max'])
+            
+        if filters['keyword']:
+            query += """ AND (
+                j.title LIKE %s OR 
+                j.description LIKE %s OR
+                c.name LIKE %s
+            )"""
+            keyword = f"%{filters['keyword']}%"
+            params.extend([keyword] * 3)
 
-@jobs_bp.route('/<int:id>', methods=['PUT'])
-@login_required
-def update_job(id):
-    data = request.get_json()
-    if not data:
-        return jsonify({"message": "No input data provided"}), 400
+        # 정렬 추가
+        query += f" ORDER BY {sort} {order}"
 
-    error = Job.update_job(id, data)
-    if error:
-        status_code = 404 if error == "Job posting not found" else 400
-        return jsonify({"message": error}), status_code
+        # 페이지네이션 추가
+        query += " LIMIT %s OFFSET %s"
+        params.extend([per_page, offset])
 
-    return jsonify({"message": "Job posting updated successfully"})
+        # 쿼리 실행
+        cursor.execute(query, params)
+        jobs = cursor.fetchall()
 
-@jobs_bp.route('/<int:id>', methods=['DELETE'])
-@login_required
-def delete_job(id):
-    error = Job.delete_job(id)
-    if error:
-        status_code = 404 if error == "Job posting not found" else 400
-        return jsonify({"message": error}), status_code
+        # 전체 결과 수 조회
+        cursor.execute("SELECT FOUND_ROWS()")
+        total = cursor.fetchone()['FOUND_ROWS()']
 
-    return jsonify({"message": "Job posting deleted successfully"}) 
+        return jsonify({
+            "status": "success",
+            "data": {
+                "jobs": jobs,
+                "pagination": {
+                    "page": page,
+                    "per_page": per_page,
+                    "total": total,
+                    "pages": (total + per_page - 1) // per_page
+                }
+            }
+        })
+
+    except Exception as e:
+        logging.error(f"Jobs fetch error: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+    finally:
+        cursor.close()
