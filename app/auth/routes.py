@@ -91,6 +91,9 @@ def login():
 @login_required
 def get_profile():
     try:
+        logging.info(f"[Route] Headers: {dict(request.headers)}")
+        logging.info(f"[Route] g object attributes: {[attr for attr in dir(g) if not attr.startswith('_')]}")
+        
         if not hasattr(g, 'current_user'):
             logging.error("[Route] No current_user in g object")
             return jsonify({
@@ -98,6 +101,8 @@ def get_profile():
                 "message": "Authentication required"
             }), 401
             
+        logging.info(f"[Route] current_user data: {g.current_user}")
+        
         if not g.current_user:
             logging.error("[Route] current_user is None")
             return jsonify({
@@ -105,8 +110,8 @@ def get_profile():
                 "message": "User not found"
             }), 404
             
-        logging.info(f"[Route] Starting get_profile for user: {g.current_user}")
         user_id = g.current_user.get('user_id')
+        logging.info(f"[Route] Attempting to fetch profile for user_id: {user_id}")
         
         if not user_id:
             logging.error("[Route] No user_id in current_user")

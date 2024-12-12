@@ -247,7 +247,7 @@ def create_app():
                     
                     # 토큰 검증 및 사용자 정보 설정
                     user_info = security.validate_token(token)
-                    if not user_info:
+                    if not user_info or not isinstance(user_info, dict):
                         return jsonify({
                             "status": "error",
                             "message": "Invalid or expired token"
@@ -256,10 +256,15 @@ def create_app():
                     # g 객체에 사용자 정보 저장
                     g.current_user = {
                         'user_id': user_info.get('user_id'),
-                        'email': user_info.get('email')
+                        'email': user_info.get('email'),
+                        'role': user_info.get('role', 'user')
                     }
+                    
+                    # 디버그 로깅 추가
+                    logger.info(f"User info set in middleware: {g.current_user}")
                         
                 except Exception as e:
+                    logger.error(f"Authentication error in middleware: {str(e)}")
                     return jsonify({
                         "status": "error",
                         "message": f"Authentication error: {str(e)}"

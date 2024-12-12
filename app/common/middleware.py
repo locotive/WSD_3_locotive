@@ -8,10 +8,12 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         try:
+            logging.info(f"[Auth] Endpoint: {request.endpoint}, Path: {request.path}")
             auth_header = request.headers.get('Authorization')
-            logging.info(f"[Middleware] Request headers: {dict(request.headers)}")
+            logging.info(f"[Auth] Authorization header: {auth_header}")
             
             if not auth_header:
+                logging.error("[Auth] No Authorization header present")
                 return jsonify({
                     "status": "error",
                     "message": "No Authorization header"
@@ -27,6 +29,8 @@ def login_required(f):
             
             try:
                 secret_key = current_app.config.get('JWT_SECRET_KEY')
+                logging.info(f"[Auth] JWT_SECRET_KEY exists: {bool(secret_key)}")
+                
                 if not secret_key:
                     return jsonify({
                         "status": "error",
