@@ -10,10 +10,18 @@ from app.common.error_handlers import register_error_handlers
 from app.database import close_db
 from app.config import Config
 from app.companies.routes import companies_bp
+from app.common.logging import setup_logger
+from app.scheduler import init_scheduler
 
 def create_app():
     app = Flask(__name__)
     CORS(app)
+
+    # 로깅 설정
+    setup_logger()
+    
+    # 스케줄러 시작
+    init_scheduler()
 
     # Register blueprints
     app.register_blueprint(auth_bp, url_prefix='/auth')
