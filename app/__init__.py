@@ -84,7 +84,7 @@ def create_app():
     }
     
     # YAML 파일들을 로드하고 병합
-    yaml_files = ['auth.yml', 'jobs.yml', 'applications.yml']
+    yaml_files = ['auth.yml', 'jobs.yml', 'applications.yml', 'bookmarks.yml']
     for yaml_file in yaml_files:
         file_path = os.path.join('app', 'docs', yaml_file)
         if os.path.exists(file_path):
