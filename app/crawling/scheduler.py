@@ -5,10 +5,11 @@ import logging
 import atexit
 from flask import Flask
 from flask_cors import CORS
+from pytz import timezone
 
 class CrawlingScheduler:
     def __init__(self):
-        self.scheduler = BackgroundScheduler()
+        self.scheduler = BackgroundScheduler(timezone=timezone('Asia/Seoul'))
         self.crawler = SaraminCrawler()
         self.logger = logging.getLogger('scheduler')
 
