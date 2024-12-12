@@ -87,8 +87,8 @@ def login():
             "message": str(e)
         }), 500)
 
-@auth_bp.route('/profile', methods=['GET'])
 @login_required
+@auth_bp.route('/profile', methods=['GET'])
 def get_profile():
     try:
         if not hasattr(g, 'current_user'):
