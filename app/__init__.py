@@ -16,6 +16,9 @@ from app.middleware.rate_limit import api_rate_limit
 from app.cache.redis_cache import cache
 from app.middleware.security import security
 from app.logging.logger import logger
+from app.monitoring.metrics import metrics
+from prometheus_client import make_wsgi_app
+from werkzeug.middleware.dispatcher import DispatcherMiddleware
 import time
 
 def create_app():
@@ -27,6 +30,11 @@ def create_app():
     
     # 스케줄러 시작
     init_scheduler()
+
+    # Prometheus 메트릭 엔드포인트 추가
+    app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {
+        '/metrics': make_wsgi_app()
+    })
 
     # Register blueprints
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -52,17 +60,23 @@ def create_app():
         g.start_time = time.time()
         # 요청 로깅
         logger.log_request()
+        
+        # 메모리 메트릭 업데이트
+        metrics.update_memory_metrics()
 
     # 미들웨어 전역 적용
     @app.before_request
     def apply_middleware():
-        if request.path.startswith('/api/docs') or request.path.startswith('/static'):
+        if request.path.startswith(('/api/docs', '/static', '/metrics')):
             return
 
         endpoint = app.view_functions.get(request.endpoint)
         if not endpoint:
             return
 
+        # 메트릭 추적 추가
+        endpoint = metrics.track_request()(endpoint)
+        
         # 보안 미들웨어 적용
         endpoint = security.validate_request()(endpoint)
         endpoint = security.security_headers()(endpoint)
@@ -96,6 +110,13 @@ def create_app():
         duration = time.time() - g.start_time
         logger.log_performance(duration)
         
+        # DB 풀 메트릭 업데이트
+        from app.database import db_pool
+        metrics.update_db_metrics(
+            pool_size=db_pool.pool_size,
+            active_connections=db_pool.pool_size - db_pool.available_connections
+        )
+        
         # 캐시 무효화 처리
         if request.method in ['POST', 'PUT', 'DELETE']:
             resource = request.path.split('/')[1]
@@ -117,6 +138,19 @@ def create_app():
     def handle_error(error):
         # 에러 로깅
         logger.log_error(error)
+        
+        # 에러 메트릭 업데이트
+        if hasattr(g, 'error_counts'):
+            g.error_counts[request.endpoint] = g.error_counts.get(request.endpoint, 0) + 1
+            metrics.update_error_metrics(
+                request.endpoint,
+                g.error_counts[request.endpoint],
+                metrics.request_count.labels(
+                    method=request.method,
+                    endpoint=request.endpoint,
+                    status='500'
+                )._value.get()
+            )
         
         # 에러 응답
         return jsonify({
