@@ -246,12 +246,18 @@ def create_app():
                         }), 401
                     
                     # 토큰 검증 및 사용자 정보 설정
-                    g.current_user = security.validate_token(token)
-                    if not g.current_user:
+                    user_info = security.validate_token(token)
+                    if not user_info:
                         return jsonify({
                             "status": "error",
                             "message": "Invalid or expired token"
                         }), 401
+                        
+                    # g 객체에 사용자 정보 저장
+                    g.current_user = {
+                        'user_id': user_info.get('user_id'),
+                        'email': user_info.get('email')
+                    }
                         
                 except Exception as e:
                     return jsonify({
@@ -292,7 +298,7 @@ def create_app():
         try:
             metrics.update_db_metrics(db_pool.pool_size)
         except:
-            pass  # DB ��트릭스 업데이트 실패 시 무시
+            pass  # DB 트릭스 업데이트 실패 시 무시
         
         return response
 
