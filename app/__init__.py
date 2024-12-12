@@ -19,7 +19,9 @@ from app.logging.logger import logger
 from app.monitoring.metrics import metrics
 from prometheus_client import make_wsgi_app
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
+from app.crawling.scheduler import scheduler
 import time
+import atexit
 
 def create_app():
     app = Flask(__name__)
@@ -29,7 +31,12 @@ def create_app():
     setup_logger()
     
     # 스케줄러 시작
-    init_scheduler()
+    @app.before_first_request
+    def start_scheduler():
+        scheduler.start()
+
+    # 애플리케이션 종료 시 스케줄러 정지
+    atexit.register(scheduler.stop)
 
     # Prometheus 메트릭 엔드포인트 추가
     app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {

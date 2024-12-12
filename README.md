@@ -96,6 +96,11 @@ job-search-api/
 
 - Prometheus 메트릭: http://113.198.66.75:17102/metrics
 
+## 포트 구성:
+- SSH: 19102
+- Backend(Flask): 17102
+- Database(MySQL): 13102
+
 ## 라이선스
 
 MIT License

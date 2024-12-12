@@ -2,6 +2,9 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from .saramin import SaraminCrawler
 import logging
+import atexit
+from flask import Flask
+from flask_cors import CORS
 
 class CrawlingScheduler:
     def __init__(self):
