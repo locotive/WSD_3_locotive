@@ -110,35 +110,23 @@ def create_app():
 
     @app.after_request
     def after_request(response):
+        # 메트릭스 업데이트
+        metrics.update_request_metrics(request)
+        
+        # 응답 시간 기록
+        if hasattr(g, 'start_time'):
+            duration = time.time() - g.start_time
+            logger.log_performance(request, duration * 1000)  # ms로 변환
+        
         # 응답 로깅
-        logger.log_response(response)
+        logger.log_response(request, response)
         
-        # 성능 로깅
-        duration = time.time() - g.start_time
-        logger.log_performance(duration)
+        # DB 커넥션 풀 메트릭스 업데이트 (이 부분 수정)
+        try:
+            metrics.update_db_metrics(db_pool.pool_size)
+        except:
+            pass  # DB 메트릭스 업데이트 실패 시 무시
         
-        # DB 풀 메트릭 업데이트
-        from app.database import db_pool
-        metrics.update_db_metrics(
-            pool_size=db_pool.pool_size,
-            active_connections=db_pool.pool_size - db_pool.available_connections
-        )
-        
-        # 캐시 무효화 처리
-        if request.method in ['POST', 'PUT', 'DELETE']:
-            resource = request.path.split('/')[1]
-            cache.invalidate_cache(f"{resource}*")
-            
-            related_resources = {
-                'jobs': ['companies', 'tech-trends', 'location-trends'],
-                'companies': ['jobs'],
-                'applications': ['jobs'],
-                'bookmarks': ['jobs']
-            }
-            
-            for related in related_resources.get(resource, []):
-                cache.invalidate_cache(f"{related}*")
-
         return response
 
     @app.errorhandler(Exception)
