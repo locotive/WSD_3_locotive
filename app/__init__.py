@@ -11,7 +11,7 @@ from app.database import close_db
 from app.config import Config
 from app.companies.routes import companies_bp
 from app.common.logging import setup_logger
-from app.scheduler import init_scheduler
+from app.crawling.scheduler import scheduler
 from app.middleware.rate_limit import api_rate_limit
 from app.cache.redis_cache import cache
 from app.middleware.security import security
