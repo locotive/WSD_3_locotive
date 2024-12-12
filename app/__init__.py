@@ -230,7 +230,7 @@ def create_app():
                         "message": "Authentication required"
                     }), 401
                     
-                # Bearer 토큰 검사
+                # Bearer 토큰 검사 및 검증
                 try:
                     if not auth_header.startswith('Bearer '):
                         return jsonify({
@@ -238,12 +238,19 @@ def create_app():
                             "message": "Invalid token format"
                         }), 401
                         
-                    # 토큰 추출 및 검증
                     token = auth_header.split(' ')[1]
                     if not token:
                         return jsonify({
                             "status": "error",
                             "message": "Token is missing"
+                        }), 401
+                    
+                    # 토큰 검증 및 사용자 정보 설정
+                    g.current_user = security.validate_token(token)
+                    if not g.current_user:
+                        return jsonify({
+                            "status": "error",
+                            "message": "Invalid or expired token"
                         }), 401
                         
                 except Exception as e:
@@ -251,8 +258,8 @@ def create_app():
                         "status": "error",
                         "message": f"Authentication error: {str(e)}"
                     }), 401
-                    
-                wrapped = security.validate_request()(wrapped)
+                
+                # 보안 헤더 적용
                 wrapped = security.security_headers()(wrapped)
             
             # 캐시는 마지막에 적용
@@ -285,7 +292,7 @@ def create_app():
         try:
             metrics.update_db_metrics(db_pool.pool_size)
         except:
-            pass  # DB 메트릭스 업데이트 실패 시 무시
+            pass  # DB ��트릭스 업데이트 실패 시 무시
         
         return response
 
