@@ -29,25 +29,44 @@ def register_user():
                     "message": f"Missing required field: {field}"
                 }), 400)
 
-        # 사용자 생성
-        result, error = User.create_user(
-            email=data['email'],
-            password=data['password'],
-            name=data['name']
-        )
-        
-        if error:
+        # 사용자 생성 시도
+        try:
+            result, error = User.create_user(
+                email=data['email'],
+                password=data['password'],
+                name=data['name']
+            )
+            
+            # 디버깅을 위한 로그 추가
+            logging.info(f"Create user result: {result}, error: {error}")
+            
+            if error:
+                return make_response(jsonify({
+                    "status": "error",
+                    "code": "UserCreationError",
+                    "message": str(error)
+                }), 400)
+            
+            if not result:
+                return make_response(jsonify({
+                    "status": "error",
+                    "code": "UserCreationError",
+                    "message": "Failed to create user"
+                }), 400)
+
+            # 성공한 경우
+            return make_response(jsonify({
+                "status": "success",
+                **result
+            }), 200)
+
+        except Exception as e:
+            logging.error(f"User creation error: {str(e)}")
             return make_response(jsonify({
                 "status": "error",
                 "code": "UserCreationError",
-                "message": error
+                "message": str(e)
             }), 400)
-
-        # 성공한 경우 (result에는 토큰 정보가 있음)
-        return make_response(jsonify({
-            "status": "success",
-            **result  # 토큰 정보 포함
-        }), 200)
 
     except Exception as e:
         logging.error(f"Registration error: {str(e)}")
