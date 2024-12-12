@@ -97,7 +97,7 @@ class SecurityMiddleware:
                         
                         # 입력 살균
                         sanitized_data = self.sanitize_input(data)
-                        request._cached_json = [sanitized_data, True]
+                        setattr(request, '_json', sanitized_data)
 
                     # URL 파라미터 검증
                     for key, value in request.args.items():
@@ -111,8 +111,9 @@ class SecurityMiddleware:
                     
                     # 결과가 튜플인 경우 (data, status_code)
                     if isinstance(result, tuple):
-                        data, status = result
-                        return make_response(jsonify(data), status)
+                        if len(result) == 2:
+                            return make_response(jsonify(result[0]), result[1])
+                        return result
                     
                     # 결과가 Response 객체인 경우
                     if isinstance(result, Response):
