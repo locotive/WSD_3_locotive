@@ -63,6 +63,15 @@ def create_app():
     SWAGGER_URL = '/api/docs'
     API_URL = '/static/swagger.json'
     
+    swaggerui_blueprint = get_swaggerui_blueprint(
+        SWAGGER_URL,
+        API_URL,
+        config={
+            'app_name': "Job Board API"
+        }
+    )
+    app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
+    
     # swagger.json 파일 생성 로직
     swagger_data = {
         "openapi": "3.0.0",
@@ -110,17 +119,6 @@ def create_app():
     with open('app/static/swagger.json', 'w', encoding='utf-8') as f:
         json.dump(swagger_data, f, ensure_ascii=False, indent=2)
     
-    # Swagger UI Blueprint 등록
-    swaggerui_blueprint = get_swaggerui_blueprint(
-        SWAGGER_URL,
-        API_URL,
-        config={
-            'app_name': "Job Board API",
-            'defaultModelsExpandDepth': -1  # 모델 섹션 숨기기
-        }
-    )
-    app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
-
     @app.before_request
     def before_request():
         # 요청 시작 시간 저장
