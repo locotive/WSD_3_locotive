@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, g
+from flask import Blueprint, request, jsonify, make_response
 from app.common.middleware import login_required
 from app.database import get_db
 from app.auth.utils import hash_password, verify_password, generate_tokens
@@ -16,11 +16,11 @@ def register_user():
         required_fields = ['email', 'password', 'name']
         for field in required_fields:
             if field not in data:
-                return jsonify({
+                return make_response(jsonify({
                     "status": "error",
                     "code": "MissingField",
                     "message": f"Missing required field: {field}"
-                }), 400
+                }), 400)
 
         result, error = User.create_user(
             email=data['email'],
@@ -31,32 +31,32 @@ def register_user():
         )
 
         if error:
-            return jsonify({
+            return make_response(jsonify({
                 "status": "error",
                 "message": error
-            }), 400
+            }), 400)
 
-        return jsonify({
+        return make_response(jsonify({
             "status": "success",
             "data": result
-        }), 201
+        }), 201)
 
     except Exception as e:
         logging.error(f"Registration error: {str(e)}")
-        return jsonify({
+        return make_response(jsonify({
             "status": "error",
             "message": str(e)
-        }), 500
+        }), 500)
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
     try:
         data = request.get_json()
         if not data.get('email') or not data.get('password'):
-            return jsonify({
+            return make_response(jsonify({
                 "status": "error",
                 "message": "Email and password are required"
-            }), 400
+            }), 400)
 
         result, error = User.authenticate(
             username=data['email'],
@@ -64,22 +64,22 @@ def login():
         )
 
         if error:
-            return jsonify({
+            return make_response(jsonify({
                 "status": "error",
                 "message": error
-            }), 401
+            }), 401)
 
-        return jsonify({
+        return make_response(jsonify({
             "status": "success",
             "data": result
-        })
+        }), 200)
 
     except Exception as e:
         logging.error(f"Login error: {str(e)}")
-        return jsonify({
+        return make_response(jsonify({
             "status": "error",
             "message": str(e)
-        }), 500
+        }), 500)
 
 @auth_bp.route('/profile', methods=['GET'])
 @login_required
@@ -96,22 +96,22 @@ def get_profile():
         
         user = cursor.fetchone()
         if not user:
-            return jsonify({
+            return make_response(jsonify({
                 "status": "error",
                 "message": "User not found"
-            }), 404
+            }), 404)
 
-        return jsonify({
+        return make_response(jsonify({
             "status": "success",
             "data": user
-        })
+        }), 200)
 
     except Exception as e:
         logging.error(f"Profile fetch error: {str(e)}")
-        return jsonify({
+        return make_response(jsonify({
             "status": "error",
             "message": str(e)
-        }), 500
+        }), 500)
     finally:
         cursor.close()
 
@@ -121,26 +121,26 @@ def update_profile():
     try:
         data = request.get_json()
         if not data:
-            return jsonify({
+            return make_response(jsonify({
                 "status": "error",
                 "message": "No data provided"
-            }), 400
+            }), 400)
 
         error = User.update_profile(g.user_id, data)
         if error:
-            return jsonify({
+            return make_response(jsonify({
                 "status": "error",
                 "message": error
-            }), 400
+            }), 400)
 
-        return jsonify({
+        return make_response(jsonify({
             "status": "success",
             "message": "Profile updated successfully"
-        })
+        }), 200)
 
     except Exception as e:
         logging.error(f"Profile update error: {str(e)}")
-        return jsonify({
+        return make_response(jsonify({
             "status": "error",
             "message": str(e)
-        }), 500
+        }), 500)
