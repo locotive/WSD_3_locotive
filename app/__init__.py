@@ -15,6 +15,8 @@ from app.scheduler import init_scheduler
 from app.middleware.rate_limit import api_rate_limit
 from app.cache.redis_cache import cache
 from app.middleware.security import security
+from app.logging.logger import logger
+import time
 
 def create_app():
     app = Flask(__name__)
@@ -43,6 +45,13 @@ def create_app():
         config={'app_name': "Job API"}
     )
     app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
+
+    @app.before_request
+    def before_request():
+        # 요청 시작 시간 저장
+        g.start_time = time.time()
+        # 요청 로깅
+        logger.log_request()
 
     # 미들웨어 전역 적용
     @app.before_request
@@ -78,10 +87,16 @@ def create_app():
 
         app.view_functions[request.endpoint] = endpoint
 
-    # 캐시 무효화 처리
     @app.after_request
     def after_request(response):
-        # 데이터 변경 시 캐시 무효화
+        # 응답 로깅
+        logger.log_response(response)
+        
+        # 성능 로깅
+        duration = time.time() - g.start_time
+        logger.log_performance(duration)
+        
+        # 캐시 무효화 처리
         if request.method in ['POST', 'PUT', 'DELETE']:
             resource = request.path.split('/')[1]
             cache.invalidate_cache(f"{resource}*")
@@ -97,6 +112,18 @@ def create_app():
                 cache.invalidate_cache(f"{related}*")
 
         return response
+
+    @app.errorhandler(Exception)
+    def handle_error(error):
+        # 에러 로깅
+        logger.log_error(error)
+        
+        # 에러 응답
+        return jsonify({
+            "status": "error",
+            "message": str(error),
+            "code": type(error).__name__
+        }), getattr(error, 'code', 500)
 
     # Register error handlers
     register_error_handlers(app)
