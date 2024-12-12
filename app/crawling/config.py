@@ -1,20 +1,18 @@
-from dataclasses import dataclass
-from typing import List, Optional
+from dataclasses import dataclass, field
+from typing import Dict
 
 @dataclass
 class CrawlingConfig:
     BASE_URL: str = "https://www.saramin.co.kr"
-    SEARCH_URL: str = f"{BASE_URL}/zf_user/jobs/list/job-category"
-    DETAIL_URL: str = f"{BASE_URL}/zf_user/jobs/relay/view"
-    
-    # 수집할 페이지 수
-    MAX_PAGES: int = 50  # 한 페이지당 20개, 총 1000개
-    
-    # 재시도 설정
+    SEARCH_URL: str = field(init=False)
+    DETAIL_URL: str = field(init=False)
+    MAX_PAGES: int = 50
     MAX_RETRIES: int = 3
-    RETRY_DELAY: int = 5  # seconds
-    
-    # 요청 헤더
-    HEADERS: dict = {
+    RETRY_DELAY: int = 5
+    HEADERS: Dict = field(default_factory=lambda: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-    } 
+    })
+
+    def __post_init__(self):
+        self.SEARCH_URL = f"{self.BASE_URL}/zf_user/jobs/list/job-category"
+        self.DETAIL_URL = f"{self.BASE_URL}/zf_user/jobs/relay/view"
