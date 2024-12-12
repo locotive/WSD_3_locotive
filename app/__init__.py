@@ -191,6 +191,7 @@ def create_app():
     # 미들웨어 전역 적용
     @app.before_request
     def apply_middleware():
+        # 특정 경로 제외
         if request.path.startswith(('/api/docs', '/static', '/metrics')):
             return
 
@@ -198,17 +199,18 @@ def create_app():
         if not endpoint:
             return
 
-        # 메트릭 추적 추가
+        # 메트릭 추적은 유지
         endpoint = metrics.track_request()(endpoint)
         
-        # 보안 미들웨어 적용
-        endpoint = security.validate_request()(endpoint)
-        endpoint = security.security_headers()(endpoint)
-        
-        # Rate Limiting 적용
+        # Rate Limiting은 모든 요청에 적용
         endpoint = api_rate_limit()(endpoint)
         
-        # 캐시 적용 (GET 요청만)
+        # 보안 미들웨어는 API 엔드포인트에만 적용
+        if not request.path.startswith(('/static', '/metrics')):
+            endpoint = security.validate_request()(endpoint)
+            endpoint = security.security_headers()(endpoint)
+        
+        # GET 요청에만 캐시 적용
         if request.method == 'GET':
             cache_timeouts = {
                 'list_jobs': 300,
