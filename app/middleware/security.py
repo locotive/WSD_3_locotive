@@ -70,9 +70,14 @@ class SecurityMiddleware:
         def decorator(f):
             @wraps(f)
             def wrapped(*args, **kwargs):
-                # JSON 데이터 검증
-                if request.is_json:
-                    data = request.get_json()
+                try:
+                    # force=False, silent=True 옵션 추가
+                    data = request.get_json(force=False, silent=True)
+                    if data is None:
+                        return jsonify({
+                            "status": "error",
+                            "message": "Invalid JSON data"
+                        }), 400
                     
                     # XSS 검사
                     if self.check_xss(data):
@@ -92,7 +97,11 @@ class SecurityMiddleware:
                         abort(400, description="Invalid query parameter")
 
                 return f(*args, **kwargs)
-            return wrapped
+            except Exception as e:
+                return jsonify({
+                    "status": "error",
+                    "message": str(e)
+                }), 400
         return decorator
 
 def validate_json():
