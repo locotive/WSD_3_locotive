@@ -74,7 +74,7 @@ class SecurityMiddleware:
             def wrapped(*args, **kwargs):
                 try:
                     if request.is_json:
-                        data = request.get_json(force=False, silent=True)
+                        data = request.get_json(force=True, silent=True)
                         if data is None:
                             return jsonify({
                                 "status": "error",
@@ -97,7 +97,6 @@ class SecurityMiddleware:
                         
                         # 입력 살균
                         sanitized_data = self.sanitize_input(data)
-                        setattr(request, '_cached_json', [True, sanitized_data])
 
                     # URL 파라미터 검증
                     for key, value in request.args.items():
@@ -107,7 +106,17 @@ class SecurityMiddleware:
                                 "message": "Invalid query parameter"
                             }), 400
 
-                    return f(*args, **kwargs)
+                    response = f(*args, **kwargs)
+                    
+                    # 응답이 튜플인 경우 처리
+                    if isinstance(response, tuple):
+                        if len(response) == 2:
+                            return make_response(jsonify(response[0])), response[1]
+                        return response
+                    
+                    # 일반 응답 처리
+                    return make_response(jsonify(response)) if not isinstance(response, Response) else response
+
                 except Exception as e:
                     logging.error(f"Request validation error: {str(e)}")
                     return jsonify({
