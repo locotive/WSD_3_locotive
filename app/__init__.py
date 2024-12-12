@@ -26,6 +26,7 @@ import atexit
 import yaml
 import json
 import os
+from functools import wraps
 
 def create_app():
     app = Flask(__name__,
@@ -39,6 +40,7 @@ def create_app():
     # 환경 변수에서 직접 로드 (백업)
     app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
     
+    # CORS 설정 수정
     CORS(app, resources={
         r"/*": {
             "origins": "*",  # 개발 환경에서는 모든 도메인 허용
@@ -196,44 +198,41 @@ def create_app():
         # 메모리 메트릭 업데이트
         metrics.update_memory_metrics()
 
-    # 미들웨어 전역 적용
-    @app.before_request
-    def apply_middleware():
-        # 특정 경로 제외
-        if request.path.startswith(('/api/docs', '/static', '/metrics')):
-            return
+    # cache_timeouts 정의
+    cache_timeouts = {
+        'list_jobs': 300,
+        'get_job_detail': 600,
+        'list_companies': 1800,
+        'get_company_detail': 1800,
+        'get_tech_stacks': 3600,
+        'get_locations': 3600,
+        'get_tech_trends': 86400,
+        'get_location_trends': 86400
+    }
 
-        endpoint = app.view_functions.get(request.endpoint)
-        if not endpoint:
-            return
+    def apply_middleware(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if request.path.startswith(('/api/docs', '/static', '/metrics')):
+                return f(*args, **kwargs)
+                
+            wrapped = metrics.track_request()(f)
+            wrapped = api_rate_limit()(wrapped)
+            
+            if not request.path.startswith(('/static', '/metrics')):
+                wrapped = security.validate_request()(wrapped)
+                wrapped = security.security_headers()(wrapped)
+            
+            if request.method == 'GET':
+                timeout = cache_timeouts.get(request.endpoint, 300)
+                wrapped = cache.cache_response(timeout=timeout)(wrapped)
+                
+            return wrapped(*args, **kwargs)
+        return decorated_function
 
-        # 메트릭 추적은 유지
-        endpoint = metrics.track_request()(endpoint)
-        
-        # Rate Limiting은 모든 요청에 적용
-        endpoint = api_rate_limit()(endpoint)
-        
-        # 보안 미들웨어는 API 엔드포인트에만 적용
-        if not request.path.startswith(('/static', '/metrics')):
-            endpoint = security.validate_request()(endpoint)
-            endpoint = security.security_headers()(endpoint)
-        
-        # GET 요청에만 캐시 적용
-        if request.method == 'GET':
-            cache_timeouts = {
-                'list_jobs': 300,
-                'get_job_detail': 600,
-                'list_companies': 1800,
-                'get_company_detail': 1800,
-                'get_tech_stacks': 3600,
-                'get_locations': 3600,
-                'get_tech_trends': 86400,
-                'get_location_trends': 86400
-            }
-            timeout = cache_timeouts.get(request.endpoint, 300)
-            endpoint = cache.cache_response(timeout=timeout)(endpoint)
-
-        app.view_functions[request.endpoint] = endpoint
+    # 모든 라우트에 미들웨어 적용
+    for endpoint in app.view_functions:
+        app.view_functions[endpoint] = apply_middleware(app.view_functions[endpoint])
 
     @app.after_request
     def after_request(response):
