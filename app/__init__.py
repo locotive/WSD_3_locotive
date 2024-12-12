@@ -78,7 +78,39 @@ def create_app():
         "info": {
             "title": "Job Board API",
             "version": "1.0.0",
-            "description": "채용 플랫폼 API 문서"
+            "description": """
+# 채용 플랫폼 API 문서
+
+## 인증 방식
+- Bearer Token 인증 사용
+- /auth/login에서 발급받은 access_token을 Authorization 헤더에 포함
+- 예: Authorization: Bearer <access_token>
+
+## 공통 에러 코드
+- 400: 잘못된 요청
+- 401: 인증 실패
+- 403: 권한 없음
+- 404: 리소스 없음
+- 409: 충돌 (중복 등)
+- 500: 서버 에러
+
+## 응답 형식
+성공 응답:
+```json
+{
+    "status": "success",
+    "data": { ... }
+}
+```
+
+에러 응답:
+```json
+{
+    "status": "error",
+    "message": "에러 메시지"
+}
+```
+            """
         },
         "paths": {},
         "components": {
@@ -87,6 +119,19 @@ def create_app():
                     "type": "http",
                     "scheme": "bearer",
                     "bearerFormat": "JWT"
+                }
+            },
+            "schemas": {},
+            "responses": {
+                "UnauthorizedError": {
+                    "description": "인증 실패",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Error"
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -99,18 +144,27 @@ def create_app():
         if os.path.exists(file_path):
             with open(file_path, 'r', encoding='utf-8') as f:
                 yaml_data = yaml.safe_load(f)
+                
                 # paths 병합
                 if 'paths' in yaml_data:
-                    swagger_data['paths'].update(yaml_data['paths'])
+                    for path, operations in yaml_data['paths'].items():
+                        if path not in swagger_data['paths']:
+                            swagger_data['paths'][path] = {}
+                        swagger_data['paths'][path].update(operations)
+                
                 # components 병합
                 if 'components' in yaml_data:
-                    for key, value in yaml_data['components'].items():
-                        if key not in swagger_data['components']:
-                            swagger_data['components'][key] = {}
-                        swagger_data['components'][key].update(value)
-                # tags 병합
+                    for component_type, components in yaml_data['components'].items():
+                        if component_type not in swagger_data['components']:
+                            swagger_data['components'][component_type] = {}
+                        swagger_data['components'][component_type].update(components)
+                
+                # tags 병합 (중복 제거)
                 if 'tags' in yaml_data:
-                    swagger_data.setdefault('tags', []).extend(yaml_data['tags'])
+                    existing_tags = {tag['name']: tag for tag in swagger_data.get('tags', [])}
+                    for tag in yaml_data['tags']:
+                        existing_tags[tag['name']] = tag
+                    swagger_data['tags'] = list(existing_tags.values())
     
     # static 디렉토리가 없으면 생성
     os.makedirs('app/static', exist_ok=True)
