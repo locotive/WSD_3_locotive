@@ -91,15 +91,17 @@ def login():
 @login_required
 def get_profile():
     try:
+        logging.info(f"Getting profile for user: {g.current_user['user_id']}")
         user_id = g.current_user['user_id']
         user, error = User.get_user_profile(user_id)
         
         if error:
+            logging.error(f"Profile fetch error: {error}")
             return make_response(jsonify({
                 "status": "error",
                 "message": error
             }), 404)
-
+        logging.info(f"Profile fetched successfully for user: {g.current_user['user_id']}")
         return make_response(jsonify({
             "status": "success",
             "data": user
