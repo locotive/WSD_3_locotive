@@ -215,14 +215,19 @@ def create_app():
         def decorated_function(*args, **kwargs):
             if request.path.startswith(('/api/docs', '/static', '/metrics')):
                 return f(*args, **kwargs)
+            
+            # 보안 미들웨어를 먼저 적용 (인증 체크)    
+            if not request.path.startswith(('/static', '/metrics')):
+                wrapped = security.validate_request()(f)
+                wrapped = security.security_headers()(wrapped)
+            else:
+                wrapped = f
                 
-            wrapped = metrics.track_request()(f)
+            # 그 다음 다른 미들웨어 적용
+            wrapped = metrics.track_request()(wrapped)
             wrapped = api_rate_limit()(wrapped)
             
-            if not request.path.startswith(('/static', '/metrics')):
-                wrapped = security.validate_request()(wrapped)
-                wrapped = security.security_headers()(wrapped)
-            
+            # 캐시는 마지막에 적용
             if request.method == 'GET':
                 timeout = cache_timeouts.get(request.endpoint, 300)
                 wrapped = cache.cache_response(timeout=timeout)(wrapped)
