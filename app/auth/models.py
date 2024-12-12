@@ -1,5 +1,5 @@
 from app.database import get_db
-from app.auth.utils import base64_encode_password, create_access_token, create_refresh_token
+from app.auth.utils import hash_password, generate_tokens
 
 class User:
     @staticmethod
@@ -12,7 +12,7 @@ class User:
             if cursor.fetchone():
                 return None, "Email already registered"
 
-            hashed_pw = base64_encode_password(password)
+            hashed_pw = hash_password(password)
 
             cursor.execute(
                 """
@@ -24,12 +24,10 @@ class User:
             db.commit()
             user_id = cursor.lastrowid
 
-            access_token = create_access_token(data={"sub": str(user_id)})
-            refresh_token = create_refresh_token(data={"sub": str(user_id)})
+            tokens = generate_tokens(user_id)
 
             return {
-                "access_token": access_token,
-                "refresh_token": refresh_token,
+                "access_token": tokens['access_token'],
                 "token_type": "bearer"
             }, None
 
@@ -54,11 +52,10 @@ class User:
             if not user or user['status'] != 'active':
                 return None, "Invalid credentials"
 
-            if not base64_encode_password(password) == user['password_hash']:
+            if not verify_password(password, user['password_hash']):
                 return None, "Invalid credentials"
 
-            access_token = create_access_token(data={"sub": str(user['user_id'])})
-            refresh_token = create_refresh_token(data={"sub": str(user['user_id'])})
+            tokens = generate_tokens(user['user_id'])
 
             cursor.execute(
                 "UPDATE users SET last_login=NOW() WHERE user_id=%s",
@@ -67,8 +64,7 @@ class User:
             db.commit()
 
             return {
-                "access_token": access_token,
-                "refresh_token": refresh_token,
+                "access_token": tokens['access_token'],
                 "token_type": "bearer"
             }, None
 
@@ -91,10 +87,10 @@ class User:
                 )
                 current_hash = cursor.fetchone()[0]
 
-                if not base64_encode_password(updates['current_password']) == current_hash:
+                if not verify_password(updates['current_password'], current_hash):
                     return "Current password is incorrect"
 
-                updates['password_hash'] = base64_encode_password(updates['new_password'])
+                updates['password_hash'] = hash_password(updates['new_password'])
                 del updates['current_password']
                 del updates['new_password']
 
