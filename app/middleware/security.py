@@ -81,51 +81,36 @@ class SecurityMiddleware:
             @wraps(f)
             def wrapped(*args, **kwargs):
                 try:
+                    # API 문서 경로 제외
+                    if request.path.startswith(('/api/docs', '/static', '/metrics')):
+                        return f(*args, **kwargs)
+
+                    # JSON 데이터 검증
                     if request.is_json:
                         data = request.get_json(force=True, silent=True)
                         if data is None:
-                            response = jsonify({
+                            return jsonify({
                                 "status": "error",
                                 "message": "Invalid JSON data"
-                            })
-                            response.status_code = 400
-                            return response
+                            }), 400
                         
-                        # XSS 검사
-                        if self.check_xss(data):
-                            response = jsonify({
-                                "status": "error",
-                                "message": "Potential XSS attack detected"
-                            })
-                            response.status_code = 400
-                            return response
+                        # POST/PUT/PATCH 요청만 XSS 검사
+                        if request.method in ['POST', 'PUT', 'PATCH']:
+                            if self.check_xss(data):
+                                return jsonify({
+                                    "status": "error",
+                                    "message": "Potential XSS attack detected"
+                                }), 400
 
-                    result = f(*args, **kwargs)
-                    
-                    # 응답이 이미 Response 객체인 경우
-                    if isinstance(result, Response):
-                        return result
-                    
-                    # 응답이 튜플인 경우 (data, status_code)
-                    if isinstance(result, tuple):
-                        data, status = result
-                        response = jsonify(data)
-                        response.status_code = status
-                        return response
-                    
-                    # 그 외의 경우
-                    response = jsonify(result)
-                    response.status_code = 200
-                    return response
+                    # 원본 함수 실행 및 반환
+                    return f(*args, **kwargs)
 
                 except Exception as e:
                     logging.error(f"Request validation error: {str(e)}")
-                    response = jsonify({
+                    return jsonify({
                         "status": "error",
                         "message": str(e)
-                    })
-                    response.status_code = 500
-                    return response
+                    }), 500
                 
             return wrapped
         return decorator
