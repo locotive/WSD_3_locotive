@@ -39,7 +39,15 @@ def create_app():
     # 환경 변수에서 직접 로드 (백업)
     app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
     
-    CORS(app)
+    CORS(app, resources={
+        r"/*": {
+            "origins": "*",  # 개발 환경에서는 모든 도메인 허용
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"],
+            "expose_headers": ["Content-Type", "Authorization"],
+            "supports_credentials": True
+        }
+    })
 
     # 로깅 설정
     setup_logger()
