@@ -50,9 +50,10 @@ class SecurityMiddleware:
         def decorator(f):
             @wraps(f)
             def wrapped(*args, **kwargs):
-                response = make_response(f(*args, **kwargs))
-                
-                # 보안 헤더 설정
+                response = f(*args, **kwargs)
+                if not isinstance(response, Response):
+                    response = make_response(response)
+                    
                 response.headers['X-Content-Type-Options'] = 'nosniff'
                 response.headers['X-Frame-Options'] = 'SAMEORIGIN'
                 response.headers['X-XSS-Protection'] = '1; mode=block'
@@ -60,6 +61,7 @@ class SecurityMiddleware:
                 response.headers['Content-Security-Policy'] = "default-src 'self'"
                 
                 return response
+            
             return wrapped
         return decorator
 
@@ -105,7 +107,7 @@ def validate_json():
                         "message": "Content-Type must be application/json"
                     }), 400)
                 
-                data = request.get_json(force=True)
+                data = request.get_json(force=True, silent=True)
                 if data is None:
                     return make_response(jsonify({
                         "status": "error",
@@ -113,8 +115,7 @@ def validate_json():
                         "message": "Invalid JSON data"
                     }), 400)
                     
-                response = f(*args, **kwargs)
-                return response if isinstance(response, Response) else make_response(response)
+                return f(*args, **kwargs)
                 
             except Exception as e:
                 logging.error(f"JSON validation error: {str(e)}")
