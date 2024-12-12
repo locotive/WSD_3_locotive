@@ -3,6 +3,9 @@ from bs4 import BeautifulSoup
 import time
 import logging
 from datetime import datetime
+import concurrent.futures
+import random
+import json
 from typing import List, Dict, Optional
 from .config import CrawlingConfig
 from app.database import get_db
@@ -14,80 +17,138 @@ class SaraminCrawler:
         self.session.headers.update(self.config.HEADERS)
         self.logger = logging.getLogger(__name__)
 
-    def crawl_jobs(self) -> List[Dict]:
-        """메인 크롤링 함수"""
+    def crawl_jobs(self, min_jobs: int = 100) -> List[Dict]:
+        """메인 크롤링 함수 - 병렬 처리 적용"""
         all_jobs = []
         
-        for page in range(1, self.config.MAX_PAGES + 1):
-            try:
-                jobs = self._crawl_page(page)
-                if not jobs:
-                    break
-                    
-                for job in jobs:
-                    job_detail = self._crawl_job_detail(job['posting_url'])
-                    if job_detail:
-                        job.update(job_detail)
-                        all_jobs.append(job)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            future_to_page = {
+                executor.submit(self._crawl_page, page): page
+                for page in range(1, self.config.MAX_PAGES + 1)
+            }
+            
+            for future in concurrent.futures.as_completed(future_to_page):
+                page = future_to_page[future]
+                try:
+                    jobs = future.result()
+                    if not jobs:
+                        continue
                         
-                time.sleep(1)  # 요청 간격
-                
-            except Exception as e:
-                self.logger.error(f"Error crawling page {page}: {str(e)}")
-                continue
+                    # 상세 정보 병렬 수집
+                    job_details = self._crawl_job_details(jobs)
+                    all_jobs.extend(job_details)
+                    
+                    self.logger.info(f"페이지 {page} 수집 완료: {len(jobs)}개")
+                    
+                    if len(all_jobs) >= min_jobs:
+                        break
+                        
+                except Exception as e:
+                    self.logger.error(f"페이지 {page} 수집 실패: {str(e)}")
+                    continue
+                    
+                time.sleep(random.uniform(1, 2))  # 요청 간격 랜덤화
                 
         return all_jobs
 
+    def _crawl_job_details(self, jobs: List[Dict]) -> List[Dict]:
+        """채용공고 상세 정보 병렬 수집"""
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            future_to_job = {
+                executor.submit(self._crawl_job_detail, job['posting_url']): job
+                for job in jobs
+            }
+            
+            detailed_jobs = []
+            for future in concurrent.futures.as_completed(future_to_job):
+                job = future_to_job[future]
+                try:
+                    job_detail = future.result()
+                    if job_detail:
+                        job.update(job_detail)
+                        detailed_jobs.append(job)
+                except Exception as e:
+                    self.logger.error(f"상세정보 수집 실패 ({job['posting_url']}): {str(e)}")
+                    continue
+                    
+                time.sleep(random.uniform(0.5, 1))  # 요청 간격 랜덤화
+                
+        return detailed_jobs
+
     def _crawl_page(self, page: int) -> List[Dict]:
         """한 페이지의 채용공고 목록 크롤링"""
-        params = {'page': page}
-        response = self._make_request(self.config.SEARCH_URL, params)
-        if not response:
-            return []
-            
-        soup = BeautifulSoup(response.text, 'html.parser')
-        job_items = soup.select('.item_recruit')
-        
-        jobs = []
-        for item in job_items:
+        for attempt in range(self.config.MAX_RETRIES):
             try:
-                job = {
-                    'title': item.select_one('.job_tit a').text.strip(),
-                    'company_name': item.select_one('.company_nm a').text.strip(),
-                    'posting_url': item.select_one('.job_tit a')['href'],
-                    'location': item.select_one('.work_place').text.strip(),
-                    'experience': item.select_one('.experience').text.strip(),
-                    'education': item.select_one('.education').text.strip(),
-                }
-                jobs.append(job)
+                params = {'page': page}
+                response = self._make_request(self.config.SEARCH_URL, params)
+                if not response:
+                    return []
+                    
+                soup = BeautifulSoup(response.text, 'html.parser')
+                job_items = soup.select('.item_recruit')
+                
+                jobs = []
+                for item in job_items:
+                    try:
+                        job = {
+                            'title': item.select_one('.job_tit a').text.strip(),
+                            'company_name': item.select_one('.company_nm a').text.strip(),
+                            'posting_url': item.select_one('.job_tit a')['href'],
+                            'location': item.select_one('.work_place').text.strip(),
+                            'experience': item.select_one('.experience').text.strip(),
+                            'education': item.select_one('.education').text.strip(),
+                        }
+                        jobs.append(job)
+                    except Exception as e:
+                        self.logger.error(f"채용공고 파싱 실패: {str(e)}")
+                        continue
+                        
+                return jobs
+                
             except Exception as e:
-                self.logger.error(f"Error parsing job item: {str(e)}")
+                self.logger.warning(f"페이지 {page} 시도 {attempt + 1} 실패: {str(e)}")
+                if attempt < self.config.MAX_RETRIES - 1:
+                    time.sleep(self.config.RETRY_DELAY * (attempt + 1))  # 지수 백오프
                 continue
                 
-        return jobs
+        return []
 
     def _crawl_job_detail(self, url: str) -> Optional[Dict]:
         """채용공고 상세 페이지 크롤링"""
-        response = self._make_request(url)
-        if not response:
-            return None
-            
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        try:
-            detail = {
-                'job_description': soup.select_one('.job_detail').text.strip(),
-                'salary': soup.select_one('.salary').text.strip(),
-                'tech_stacks': [
-                    tech.text.strip() 
-                    for tech in soup.select('.job_stacks .stack')
-                ],
-                'deadline': soup.select_one('.deadline').text.strip(),
-            }
-            return detail
-        except Exception as e:
-            self.logger.error(f"Error parsing job detail: {str(e)}")
-            return None
+        for attempt in range(self.config.MAX_RETRIES):
+            try:
+                response = self._make_request(url)
+                if not response:
+                    return None
+                    
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                detail = {
+                    'job_description': soup.select_one('.job_detail').text.strip(),
+                    'salary': soup.select_one('.salary').text.strip(),
+                    'tech_stacks': [
+                        tech.text.strip() 
+                        for tech in soup.select('.job_stacks .stack')
+                    ],
+                    'deadline': soup.select_one('.deadline').text.strip(),
+                    'requirements': [
+                        req.text.strip()
+                        for req in soup.select('.job_requirements li')
+                    ],
+                    'benefits': [
+                        benefit.text.strip()
+                        for benefit in soup.select('.job_benefits li')
+                    ]
+                }
+                return detail
+                
+            except Exception as e:
+                self.logger.warning(f"상세정보 시도 {attempt + 1} 실패: {str(e)}")
+                if attempt < self.config.MAX_RETRIES - 1:
+                    time.sleep(self.config.RETRY_DELAY * (attempt + 1))
+                continue
+                
+        return None
 
     def _make_request(self, url: str, params: Dict = None) -> Optional[requests.Response]:
         """재시도 로직이 포함된 요청 함수"""
