@@ -12,15 +12,15 @@ def register_user():
     try:
         data = request.get_json()
         
-        # 필수 필드 검증
         required_fields = ['email', 'password', 'name']
         for field in required_fields:
-            if field not in data:
-                return make_response(jsonify({
+            if not data.get(field):
+                response = jsonify({
                     "status": "error",
-                    "code": "MissingField",
-                    "message": f"Missing required field: {field}"
-                }), 400)
+                    "message": f"{field} is required"
+                })
+                response.status_code = 400
+                return response
 
         result, error = User.create_user(
             email=data['email'],
@@ -31,22 +31,28 @@ def register_user():
         )
 
         if error:
-            return make_response(jsonify({
+            response = jsonify({
                 "status": "error",
                 "message": error
-            }), 400)
+            })
+            response.status_code = 400
+            return response
 
-        return make_response(jsonify({
+        response = jsonify({
             "status": "success",
             "data": result
-        }), 201)
+        })
+        response.status_code = 201
+        return response
 
     except Exception as e:
         logging.error(f"Registration error: {str(e)}")
-        return make_response(jsonify({
+        response = jsonify({
             "status": "error",
             "message": str(e)
-        }), 500)
+        })
+        response.status_code = 500
+        return response
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
