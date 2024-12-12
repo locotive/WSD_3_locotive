@@ -9,10 +9,10 @@ from pytz import timezone
 
 class CrawlingScheduler:
     def __init__(self):
-        self.scheduler = BackgroundScheduler()
+        self.tz = timezone('Asia/Seoul')
+        self.scheduler = BackgroundScheduler(timezone=self.tz)
         self.crawler = SaraminCrawler()
         self.logger = logging.getLogger('scheduler')
-        self.tz = timezone('Asia/Seoul')
 
     def start(self):
         """스케줄러 시작"""
