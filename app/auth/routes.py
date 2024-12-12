@@ -10,7 +10,6 @@ auth_bp = Blueprint('auth', __name__)
 @auth_bp.route('/register', methods=['POST'])
 def register_user():
     try:
-        # JSON 데이터 파싱
         data = request.get_json(force=True)
         
         if not data:
@@ -31,7 +30,7 @@ def register_user():
                 }), 400)
 
         # 사용자 생성
-        error = User.create_user(
+        result, error = User.create_user(
             email=data['email'],
             password=data['password'],
             name=data['name']
@@ -41,21 +40,13 @@ def register_user():
             return make_response(jsonify({
                 "status": "error",
                 "code": "UserCreationError",
-                "message": str(error)
+                "message": error
             }), 400)
 
-        # 토큰 생성
-        access_token = create_access_token(identity=data['email'])
-        refresh_token = create_refresh_token(identity=data['email'])
-
+        # 성공한 경우 (result에는 토큰 정보가 있음)
         return make_response(jsonify({
             "status": "success",
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "user": {
-                "email": data['email'],
-                "name": data['name']
-            }
+            **result  # 토큰 정보 포함
         }), 200)
 
     except Exception as e:
