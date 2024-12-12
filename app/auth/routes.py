@@ -9,7 +9,7 @@ auth_bp = Blueprint('auth', __name__)
 @auth_bp.route('/register', methods=['POST'])
 def register_user():
     try:
-        # silent=True로 설정하여 JSON 파싱 오류를 무시
+        # JSON 데이터 파싱
         data = request.get_json(silent=True)
         
         if data is None:
@@ -30,37 +30,28 @@ def register_user():
                 }), 400
 
         # 사용자 생성
-        try:
-            error = User.create_user(
-                email=data['email'],
-                password=data['password'],
-                name=data['name']
-            )
-            
-            if error:
-                return jsonify({
-                    "status": "error",
-                    "code": "UserCreationError",
-                    "message": error
-                }), 400
-
-            # 토큰 생성
-            access_token = create_access_token({"email": data['email']})
-            refresh_token = create_refresh_token({"email": data['email']})
-
-            return jsonify({
-                "status": "success",
-                "access_token": access_token,
-                "refresh_token": refresh_token
-            }), 200
-
-        except Exception as e:
-            logging.error(f"User creation error: {str(e)}")
+        error = User.create_user(
+            email=data['email'],
+            password=data['password'],
+            name=data['name']
+        )
+        
+        if error:
             return jsonify({
                 "status": "error",
                 "code": "UserCreationError",
-                "message": str(e)
-            }), 500
+                "message": error
+            }), 400
+
+        # 토큰 생성
+        access_token = create_access_token({"email": data['email']})
+        refresh_token = create_refresh_token({"email": data['email']})
+
+        return jsonify({
+            "status": "success",
+            "access_token": access_token,
+            "refresh_token": refresh_token
+        }), 200
 
     except Exception as e:
         logging.error(f"Registration error: {str(e)}")
