@@ -47,23 +47,31 @@ class SecurityMiddleware:
         def decorator(f):
             @wraps(f)
             def wrapped(*args, **kwargs):
-                try:
-                    response = f(*args, **kwargs)
-                    if isinstance(response, tuple):
-                        response = make_response(response[0]), response[1]
+                response = f(*args, **kwargs)
+                
+                # 응답이 튜플인 경우
+                if isinstance(response, tuple):
+                    response_obj = response[0]
+                    status = response[1]
+                    if not isinstance(response_obj, Response):
+                        response_obj = jsonify(response_obj)
+                    response_obj.status_code = status
+                else:
                     if not isinstance(response, Response):
-                        response = make_response(response)
-                    
-                    response.headers['X-Content-Type-Options'] = 'nosniff'
-                    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
-                    response.headers['X-XSS-Protection'] = '1; mode=block'
-                    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-                    response.headers['Content-Security-Policy'] = "default-src 'self'"
-                    
-                    return response
-                except Exception as e:
-                    logging.error(f"Security headers error: {str(e)}")
-                    return jsonify({"status": "error", "message": str(e)}), 500
+                        response_obj = jsonify(response)
+                        response_obj.status_code = 200
+                    else:
+                        response_obj = response
+                
+                # 보안 헤더 추가
+                response_obj.headers['X-Content-Type-Options'] = 'nosniff'
+                response_obj.headers['X-Frame-Options'] = 'SAMEORIGIN'
+                response_obj.headers['X-XSS-Protection'] = '1; mode=block'
+                response_obj.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+                response_obj.headers['Content-Security-Policy'] = "default-src 'self'"
+                
+                return response_obj
+                
             return wrapped
         return decorator
 
@@ -76,58 +84,49 @@ class SecurityMiddleware:
                     if request.is_json:
                         data = request.get_json(force=True, silent=True)
                         if data is None:
-                            return jsonify({
+                            response = jsonify({
                                 "status": "error",
                                 "message": "Invalid JSON data"
-                            }), 400
+                            })
+                            response.status_code = 400
+                            return response
                         
                         # XSS 검사
                         if self.check_xss(data):
-                            return jsonify({
+                            response = jsonify({
                                 "status": "error",
                                 "message": "Potential XSS attack detected"
-                            }), 400
-                        
-                        # SQL Injection 검사
-                        if self.check_sql_injection(data):
-                            return jsonify({
-                                "status": "error",
-                                "message": "Potential SQL injection detected"
-                            }), 400
-                        
-                        # 입력 살균
-                        sanitized_data = self.sanitize_input(data)
-                        setattr(request, '_json', sanitized_data)
-
-                    # URL 파라미터 검증
-                    for key, value in request.args.items():
-                        if self.check_xss(value) or self.check_sql_injection(value):
-                            return jsonify({
-                                "status": "error",
-                                "message": "Invalid query parameter"
-                            }), 400
+                            })
+                            response.status_code = 400
+                            return response
 
                     result = f(*args, **kwargs)
                     
-                    # 결과가 튜플인 경우 (data, status_code)
-                    if isinstance(result, tuple):
-                        data = result[0]
-                        status = result[1] if len(result) > 1 else 200
-                        return jsonify(data), status
-                    
-                    # 결과가 Response 객체인 경우
+                    # 응답이 이미 Response 객체인 경우
                     if isinstance(result, Response):
                         return result
                     
+                    # 응답이 튜플인 경우 (data, status_code)
+                    if isinstance(result, tuple):
+                        data, status = result
+                        response = jsonify(data)
+                        response.status_code = status
+                        return response
+                    
                     # 그 외의 경우
-                    return jsonify(result), 200
+                    response = jsonify(result)
+                    response.status_code = 200
+                    return response
 
                 except Exception as e:
                     logging.error(f"Request validation error: {str(e)}")
-                    return jsonify({
+                    response = jsonify({
                         "status": "error",
                         "message": str(e)
-                    }), 500
+                    })
+                    response.status_code = 500
+                    return response
+                
             return wrapped
         return decorator
 
