@@ -1,61 +1,58 @@
-import base64
+from werkzeug.security import generate_password_hash, check_password_hash
+import jwt
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Tuple
-from jose import jwt
-from app.config import Config
+from flask import current_app
+import logging
 
-def base64_encode_password(raw_password: str) -> str:
-    return base64.b64encode(raw_password.encode('utf-8')).decode('utf-8')
-
-def verify_password(plain: str, encoded: str) -> bool:
-    return base64_encode_password(plain) == encoded
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    if "sub" in data and not isinstance(data["sub"], str):
-        data["sub"] = str(data["sub"])
-
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now() + expires_delta
-    else:
-        expire = datetime.now() + timedelta(minutes=Config.ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, Config.SECRET_KEY, algorithm=Config.ALGORITHM)
-
-def create_refresh_token(data: dict) -> str:
-    if "sub" in data and not isinstance(data["sub"], str):
-        data["sub"] = str(data["sub"])
-
-    expire = datetime.now() + timedelta(days=Config.REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode = data.copy()
-    to_encode.update({"exp": expire, "scope": "refresh_token"})
-    return jwt.encode(to_encode, Config.SECRET_KEY, algorithm=Config.ALGORITHM)
-
-def validate_user_data(data: Dict) -> Optional[str]:
-    """
-    Validate user registration/update data
-    Returns error message if validation fails, None if successful
-    """
-    if not data:
-        return "No input data provided"
-
-    if 'email' in data and not '@' in data['email']:
-        return "Invalid email format"
-
-    if 'password' in data and len(data['password']) < 6:
-        return "Password must be at least 6 characters long"
-
-    return None
-
-def decode_token(token: str) -> Tuple[Optional[Dict], Optional[str]]:
-    """
-    Decode and validate JWT token
-    Returns (payload, error)
-    """
+def hash_password(password: str) -> str:
+    """비밀번호를 해싱하는 함수"""
     try:
-        payload = jwt.decode(token, Config.SECRET_KEY, algorithms=[Config.ALGORITHM])
-        return payload, None
+        return generate_password_hash(password)
+    except Exception as e:
+        logging.error(f"Password hashing error: {str(e)}")
+        raise
+
+def verify_password(password: str, hashed_password: str) -> bool:
+    """비밀번호를 검증하는 함수"""
+    try:
+        return check_password_hash(hashed_password, password)
+    except Exception as e:
+        logging.error(f"Password verification error: {str(e)}")
+        return False
+
+def generate_tokens(user_id: int) -> dict:
+    """Access Token과 Refresh Token을 생성하는 함수"""
+    try:
+        # Access Token 생성 (만료시간 1시간)
+        access_token = jwt.encode(
+            {
+                'user_id': user_id,
+                'exp': datetime.utcnow() + timedelta(hours=1)
+            },
+            current_app.config['SECRET_KEY'],
+            algorithm='HS256'
+        )
+
+        return {
+            'access_token': access_token
+        }
+    except Exception as e:
+        logging.error(f"Token generation error: {str(e)}")
+        raise
+
+def verify_token(token: str) -> dict:
+    """토큰을 검증하고 페이로드를 반환하는 함수"""
+    try:
+        payload = jwt.decode(
+            token,
+            current_app.config['SECRET_KEY'],
+            algorithms=['HS256']
+        )
+        return payload
     except jwt.ExpiredSignatureError:
-        return None, "Token has expired"
-    except jwt.JWTError:
-        return None, "Invalid token" 
+        raise ValueError("Token has expired")
+    except jwt.InvalidTokenError as e:
+        raise ValueError(f"Invalid token: {str(e)}")
+    except Exception as e:
+        logging.error(f"Token verification error: {str(e)}")
+        raise 
