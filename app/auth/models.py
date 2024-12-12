@@ -1,5 +1,6 @@
 from app.database import get_db
 from app.auth.utils import hash_password, generate_tokens
+import logging
 
 class User:
     @staticmethod
@@ -16,23 +17,30 @@ class User:
 
             cursor.execute(
                 """
-                INSERT INTO users(email, password_hash, name, phone, birth_date, status) 
-                VALUES (%s, %s, %s, %s, %s, 'active')
+                INSERT INTO users(email, password_hash, name, phone, birth_date, status, created_at) 
+                VALUES (%s, %s, %s, %s, %s, 'active', NOW())
                 """,
                 (email, hashed_pw, name, phone, birth_date)
             )
             db.commit()
             user_id = cursor.lastrowid
 
+            if not user_id:
+                return None, "Failed to create user"
+
             tokens = generate_tokens(user_id)
 
             return {
+                "user_id": user_id,
+                "email": email,
+                "name": name,
                 "access_token": tokens['access_token'],
                 "token_type": "bearer"
             }, None
 
         except Exception as e:
             db.rollback()
+            logging.error(f"User creation error: {str(e)}")
             return None, str(e)
         finally:
             cursor.close()
