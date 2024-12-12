@@ -1,7 +1,7 @@
 {
   "openapi": "3.0.0",
   "info": {
-    "title": "Job Search API",
+    "title": "Locomotive API",
     "version": "1.0.0",
     "description": "채용정보 검색 및 지원 API"
   },
@@ -38,45 +38,90 @@
         },
         "required": ["email", "password", "name"]
       },
-      "Job": {
+      "Resume": {
         "type": "object",
         "properties": {
-          "posting_id": {
+          "resume_id": {
             "type": "integer"
-          },
-          "company_name": {
-            "type": "string"
           },
           "title": {
             "type": "string"
           },
-          "job_description": {
+          "content": {
             "type": "string"
           },
-          "experience_level": {
-            "type": "string"
+          "education": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "school": {
+                  "type": "string"
+                },
+                "major": {
+                  "type": "string"
+                },
+                "degree": {
+                  "type": "string"
+                },
+                "graduation_date": {
+                  "type": "string",
+                  "format": "date"
+                }
+              }
+            }
           },
-          "education_level": {
-            "type": "string"
+          "experience": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "company": {
+                  "type": "string"
+                },
+                "position": {
+                  "type": "string"
+                },
+                "period": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            }
           },
-          "employment_type": {
-            "type": "string"
-          },
-          "salary_info": {
-            "type": "string"
-          },
-          "location": {
-            "type": "string"
-          },
-          "deadline_date": {
-            "type": "string",
-            "format": "date"
-          },
-          "tech_stacks": {
+          "skills": {
             "type": "array",
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "Company": {
+        "type": "object",
+        "properties": {
+          "company_id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "industry": {
+            "type": "string"
+          },
+          "employee_count": {
+            "type": "integer"
+          },
+          "location": {
+            "type": "string"
+          },
+          "website": {
+            "type": "string"
           }
         }
       }
@@ -98,7 +143,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "회원가입 성공",
             "content": {
               "application/json": {
@@ -109,9 +154,6 @@
                       "type": "string"
                     },
                     "refresh_token": {
-                      "type": "string"
-                    },
-                    "token_type": {
                       "type": "string"
                     }
                   }
@@ -136,13 +178,15 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "username": {
-                    "type": "string"
+                  "email": {
+                    "type": "string",
+                    "format": "email"
                   },
                   "password": {
                     "type": "string"
                   }
-                }
+                },
+                "required": ["email", "password"]
               }
             }
           }
@@ -160,8 +204,36 @@
                     },
                     "refresh_token": {
                       "type": "string"
-                    },
-                    "token_type": {
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "인증 실패"
+          }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "토큰 갱신",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "토큰 갱신 성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "access_token": {
                       "type": "string"
                     }
                   }
@@ -175,88 +247,10 @@
         }
       }
     },
-    "/jobs": {
-      "get": {
-        "tags": ["Jobs"],
-        "summary": "채용공고 목록 조회",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "keyword",
-            "schema": {
-              "type": "string"
-            },
-            "description": "검색 키워드"
-          },
-          {
-            "in": "query",
-            "name": "page",
-            "schema": {
-              "type": "integer",
-              "default": 1
-            },
-            "description": "페이지 번호"
-          },
-          {
-            "in": "query",
-            "name": "location_id",
-            "schema": {
-              "type": "integer"
-            },
-            "description": "지역 필터"
-          },
-          {
-            "in": "query",
-            "name": "tech_stacks",
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "description": "기술 스택 필터"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "채용공고 목록",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "jobs": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Job"
-                      }
-                    },
-                    "pagination": {
-                      "type": "object",
-                      "properties": {
-                        "currentPage": {
-                          "type": "integer"
-                        },
-                        "totalPages": {
-                          "type": "integer"
-                        },
-                        "totalItems": {
-                          "type": "integer"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/applications": {
+    "/resumes": {
       "post": {
-        "tags": ["Applications"],
-        "summary": "채용공고 지원",
+        "tags": ["Resumes"],
+        "summary": "이력서 등록",
         "security": [
           {
             "bearerAuth": []
@@ -265,32 +259,16 @@
         "requestBody": {
           "required": true,
           "content": {
-            "multipart/form-data": {
+            "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "posting_id": {
-                    "type": "integer"
-                  },
-                  "resume_id": {
-                    "type": "integer"
-                  },
-                  "resume_file": {
-                    "type": "string",
-                    "format": "binary"
-                  }
-                },
-                "required": ["posting_id"]
+                "$ref": "#/components/schemas/Resume"
               }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "지원 성공"
-          },
-          "400": {
-            "description": "잘못된 요청"
+          "201": {
+            "description": "이력서 등록 성공"
           },
           "401": {
             "description": "인증 필요"
@@ -298,8 +276,37 @@
         }
       },
       "get": {
-        "tags": ["Applications"],
-        "summary": "지원 내역 조회",
+        "tags": ["Resumes"],
+        "summary": "이력서 목록 조회",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "이력서 목록",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Resume"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "인증 필요"
+          }
+        }
+      }
+    },
+    "/resumes/{resume_id}": {
+      "get": {
+        "tags": ["Resumes"],
+        "summary": "이력서 상세 조회",
         "security": [
           {
             "bearerAuth": []
@@ -307,28 +314,169 @@
         ],
         "parameters": [
           {
-            "in": "query",
-            "name": "status_filter",
+            "name": "resume_id",
+            "in": "path",
+            "required": true,
             "schema": {
-              "type": "string",
-              "enum": ["pending", "accepted", "rejected"]
-            }
-          },
-          {
-            "in": "query",
-            "name": "page",
-            "schema": {
-              "type": "integer",
-              "default": 1
+              "type": "integer"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "지원 내역"
+            "description": "이력서 상세 정보",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Resume"
+                }
+              }
+            }
           },
-          "401": {
-            "description": "인증 필요"
+          "404": {
+            "description": "이력서를 찾을 수 없음"
+          }
+        }
+      },
+      "put": {
+        "tags": ["Resumes"],
+        "summary": "이력서 수정",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "resume_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Resume"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "이력서 수정 성공"
+          },
+          "404": {
+            "description": "이력서를 찾을 수 없음"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Resumes"],
+        "summary": "이력서 삭제",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "resume_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "이력서 삭제 성공"
+          },
+          "404": {
+            "description": "이력서를 찾을 수 없음"
+          }
+        }
+      }
+    },
+    "/companies/{company_id}": {
+      "get": {
+        "tags": ["Companies"],
+        "summary": "기업 정보 조회",
+        "parameters": [
+          {
+            "name": "company_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "기업 정보",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Company"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "기업을 찾을 수 없음"
+          }
+        }
+      }
+    },
+    "/companies/search": {
+      "get": {
+        "tags": ["Companies"],
+        "summary": "기업 검색",
+        "parameters": [
+          {
+            "name": "keyword",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "검색 키워드"
+          },
+          {
+            "name": "industry",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "산업 분야"
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "지역"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "기업 목록",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Company"
+                  }
+                }
+              }
+            }
           }
         }
       }
