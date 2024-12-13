@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, make_response, g
 from app.jobs.models import JobPosting
-from app.middleware.auth import login_required, company_required
+from app.middleware.auth import login_required
 import logging
 from app.database import get_db
 from app.config.location_config import LocationConfig
