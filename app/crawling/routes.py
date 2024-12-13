@@ -1,25 +1,21 @@
 from flask import Blueprint, jsonify
 from .saramin import SaraminCrawler
-import logging
+import asyncio
 
 crawling_bp = Blueprint('crawling', __name__)
 
 @crawling_bp.route('/manual', methods=['POST'])
 def manual_crawling():
+    """수동 크롤링 엔드포인트"""
     try:
         crawler = SaraminCrawler()
-        jobs = crawler.crawl_jobs()
-        if jobs:
-            saved_count = crawler.save_to_db(jobs)
-            return jsonify({
-                'message': f'크롤링 완료: {len(jobs)}개 수집, {saved_count}개 저장'
-            }), 200
-        else:
-            return jsonify({
-                'message': '크롤링 실패: 수집된 데이터 없음'
-            }), 400
+        # 비동기 크롤러 실행
+        asyncio.run(crawler.crawl_jobs())
+        return jsonify({"message": "크롤링이 성공적으로 완료되었습니다."}), 200
     except Exception as e:
-        logging.error(f'수동 크롤링 실패: {str(e)}')
-        return jsonify({
-            'message': f'크롤링 실패: {str(e)}'
-        }), 500
+        return jsonify({"message": f"크롤링 실패: {str(e)}"}), 500
+
+@crawling_bp.route('/status', methods=['GET'])
+def crawling_status():
+    """크롤링 상태 확인 엔드포인트"""
+    return jsonify({"status": "running"}), 200
