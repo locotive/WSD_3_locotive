@@ -113,21 +113,21 @@ def get_bookmarks():
         db = get_db()
         cursor = db.cursor(dictionary=True)
 
-        # 페이지네이션
         page = int(request.args.get('page', 1))
         per_page = int(request.args.get('per_page', 20))
         offset = (page - 1) * per_page
 
-        # 북마크 목록 조회
+        # jobs -> job_postings로 테이블명 수정
         cursor.execute("""
             SELECT SQL_CALC_FOUND_ROWS 
                 b.*, j.title as job_title, 
-                j.deadline, j.salary,
+                j.deadline_date as deadline, j.salary_info as salary,
                 c.name as company_name,
-                c.location as company_location
+                l.city as company_location
             FROM bookmarks b
-            JOIN jobs j ON b.job_id = j.id
-            JOIN companies c ON j.company_id = c.id
+            JOIN job_postings j ON b.job_id = j.posting_id
+            JOIN companies c ON j.company_id = c.company_id
+            LEFT JOIN locations l ON j.location_id = l.location_id
             WHERE b.user_id = %s AND b.status = 'active'
             ORDER BY b.created_at DESC
             LIMIT %s OFFSET %s
@@ -135,7 +135,6 @@ def get_bookmarks():
         
         bookmarks = cursor.fetchall()
 
-        # 전체 결과 수 조회
         cursor.execute("SELECT FOUND_ROWS()")
         total = cursor.fetchone()['FOUND_ROWS()']
 
