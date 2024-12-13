@@ -54,6 +54,14 @@ flask run
 bash
 python app/crawling/scheduler.py
 
+## 프로젝트 설정
+
+1. 로그 디렉토리 생성
+```bash
+mkdir logs
+chmod 755 logs
+```
+
 ## API 문서
 
 - Swagger UI: http://113.198.66.75:17102/api/docs
