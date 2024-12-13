@@ -1,10 +1,5 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
-from pyvirtualdisplay import Display
+import requests
+from bs4 import BeautifulSoup
 import logging
 import time
 import random
@@ -12,77 +7,16 @@ from datetime import datetime
 from .models import Job, Company
 from .config import CrawlingConfig
 from app.database import db
-import shutil
-import os
-import tempfile
 
 class SaraminCrawler:
     def __init__(self):
         self.config = CrawlingConfig()
-        self.display = None
-        self.driver = None
-        
-    def setup_driver(self):
-        """Chrome WebDriver 및 가상 디스플레이 설정"""
-        try:
-            # 임시 디렉토리 생성
-            temp_dir = tempfile.mkdtemp()
-            os.environ['XDG_RUNTIME_DIR'] = temp_dir
-            
-            # 가상 디스플레이 시작
-            self.display = Display(visible=0, size=(1920, 1080))
-            self.display.start()
-            
-            # Chrome 옵션 설정
-            chrome_options = Options()
-            chrome_options.add_argument('--headless=new')
-            chrome_options.add_argument('--no-sandbox')
-            chrome_options.add_argument('--disable-dev-shm-usage')
-            chrome_options.add_argument('--disable-gpu')
-            chrome_options.add_argument(f'--user-data-dir={temp_dir}/chrome')
-            chrome_options.add_argument('--window-size=1920x1080')
-            chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-            chrome_options.add_argument('--disable-extensions')
-            chrome_options.add_argument('--disable-infobars')
-            chrome_options.add_argument('--disable-notifications')
-            chrome_options.add_argument('--disable-popup-blocking')
-            chrome_options.add_argument('--disable-web-security')
-            chrome_options.add_argument('--ignore-certificate-errors')
-            chrome_options.add_argument('--start-maximized')
-            chrome_options.add_argument('--single-process')
-            
-            chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-            chrome_options.add_experimental_option('useAutomationExtension', False)
-            
-            # ChromeDriver 직접 실행
-            self.driver = webdriver.Chrome(options=chrome_options)
-            
-            # 타임아웃 설정
-            self.driver.set_page_load_timeout(30)
-            self.driver.set_script_timeout(30)
-            
-            # 자동화 감지 우회
-            self.driver.execute_cdp_cmd('Network.setUserAgentOverride', {
-                "userAgent": self.config.HEADERS["User-Agent"]
-            })
-            self.driver.execute_script(
-                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
-            )
-            
-            return True
-            
-        except Exception as e:
-            logging.error(f"WebDriver 설정 실패: {str(e)}")
-            if self.display:
-                self.display.stop()
-            return False
-
+        self.session = requests.Session()
+        self.session.headers.update(self.config.HEADERS)
+    
     async def crawl_jobs(self):
         """채용 정보 크롤링 실행"""
         try:
-            if not self.setup_driver():
-                raise Exception("WebDriver 초기화 실패")
-                
             all_jobs = []
             search_url = f"{self.config.BASE_URL}/zf_user/search/recruit"
             
@@ -94,35 +28,26 @@ class SaraminCrawler:
                 'exp_cd': '1',        
             }
             
-            query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
-            self.driver.get(f"{search_url}?{query_string}")
-            
             for page in range(1, self.config.MAX_PAGES + 1):
                 try:
-                    # 채용공고 목록 로딩 대기
-                    WebDriverWait(self.driver, 10).until(
-                        EC.presence_of_all_elements_located(
-                            (By.CLASS_NAME, "item_recruit")
-                        )
-                    )
+                    params['recruitPage'] = page
+                    response = self.session.get(search_url, params=params)
+                    response.raise_for_status()
                     
-                    # 채용공고 정보 추출
-                    job_elements = self.driver.find_elements(By.CLASS_NAME, "item_recruit")
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    job_elements = soup.select('.item_recruit')
+                    
+                    if not job_elements:
+                        break
+                        
                     for element in job_elements:
                         if job_info := self.extract_job_info(element):
                             all_jobs.append(job_info)
                     
-                    # 다음 페이지로 이동
-                    next_page = f"{search_url}?{query_string}&recruitPage={page + 1}"
-                    self.driver.get(next_page)
-                    time.sleep(random.uniform(2, 4))  # 랜덤 딜레이
-                    
-                except TimeoutException:
-                    logging.error(f"페이지 {page} 로딩 시간 초과")
-                    break
+                    time.sleep(random.uniform(1, 2))  # 랜덤 딜레이
                     
                 except Exception as e:
-                    logging.error(f"페이지 {page} 리 중 오류: {str(e)}")
+                    logging.error(f"페이지 {page} 처리 중 오류: {str(e)}")
                     continue
             
             # 수집된 데이터 저장
@@ -132,19 +57,6 @@ class SaraminCrawler:
         except Exception as e:
             logging.error(f"크롤링 실패: {str(e)}")
             raise
-            
-        finally:
-            if self.driver:
-                try:
-                    self.driver.quit()
-                except Exception as e:
-                    logging.error(f"드라이버 종료 실패: {str(e)}")
-                    
-            if self.display:
-                try:
-                    self.display.stop()
-                except Exception as e:
-                    logging.error(f"디스플레이 종료 실패: {str(e)}")
 
     def extract_job_info(self, element):
         """채용 정보 추출"""
@@ -152,35 +64,32 @@ class SaraminCrawler:
             info = {}
             
             # 기본 정보
-            title_elem = element.find_element(By.CSS_SELECTOR, '[class*="job_tit"]')
+            title_elem = element.select_one('[class*="job_tit"] a')
             info['title'] = title_elem.text.strip()
-            info['link'] = title_elem.get_attribute('href')
+            info['link'] = title_elem.get('href')
             
             # 회사 정보
-            company_elem = element.find_element(By.CSS_SELECTOR, '[class*="corp_name"]')
+            company_elem = element.select_one('[class*="corp_name"] a')
             info['company_name'] = company_elem.text.strip()
             
             # 상세 정보
-            details = element.find_elements(By.CSS_SELECTOR, '[class*="job_condition"] > span')
+            details = element.select('[class*="job_condition"] > span')
             info.update({
-                'location': details[0].text if len(details) > 0 else '',
-                'experience': details[1].text if len(details) > 1 else '',
-                'education': details[2].text if len(details) > 2 else '',
-                'employment_type': details[3].text if len(details) > 3 else ''
+                'location': details[0].text.strip() if len(details) > 0 else '',
+                'experience': details[1].text.strip() if len(details) > 1 else '',
+                'education': details[2].text.strip() if len(details) > 2 else '',
+                'employment_type': details[3].text.strip() if len(details) > 3 else ''
             })
             
             # 추가 정보
-            deadline_elem = element.find_element(By.CSS_SELECTOR, '[class*="date"]')
-            info['deadline'] = deadline_elem.text if deadline_elem else ''
+            deadline_elem = element.select_one('[class*="date"]')
+            info['deadline'] = deadline_elem.text.strip() if deadline_elem else ''
             
-            sector_elem = element.find_element(By.CSS_SELECTOR, '[class*="job_sector"]')
-            info['sector'] = sector_elem.text if sector_elem else ''
+            sector_elem = element.select_one('[class*="job_sector"]')
+            info['sector'] = sector_elem.text.strip() if sector_elem else ''
             
             return info
             
-        except NoSuchElementException as e:
-            logging.error(f"요소를 찾을 수 없음: {str(e)}")
-            return None
         except Exception as e:
             logging.error(f"정보 추출 실패: {str(e)}")
             return None
