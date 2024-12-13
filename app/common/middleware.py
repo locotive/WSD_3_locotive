@@ -72,6 +72,9 @@ def login_required(f):
                         "message": "User not found"
                     }), 401
 
+                logging.info(f"[Auth] Token validation successful - User ID: {user_id}")
+                logging.info(f"[Auth] Request headers: {dict(request.headers)}")
+                
                 logging.info(f"[Middleware] User data fetched: {user}")
                 g.current_user = user
                 
