@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, make_response, g
 from app.jobs.models import JobPosting
 from app.middleware.auth import login_required, company_required
 import logging
-from app.database.db import get_db
+from app.database import get_db
 
 jobs_bp = Blueprint('jobs', __name__, url_prefix='/jobs')
 
@@ -82,7 +82,7 @@ def create_job_posting():
                     "message": f"Missing required field: {field}"
                 }), 400)
 
-        # 현재 로그인한 사용자의 company_id 가져오기
+        # 현재 로��인한 사용자의 company_id 가져오기
         db = get_db()
         cursor = db.cursor()
         
