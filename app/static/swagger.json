@@ -1580,11 +1580,6 @@
         ],
         "summary": "수동 크롤링 실행",
         "description": "사람인 채용공고를 수동으로 크롤링합니다",
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
         "responses": {
           "200": {
             "description": "크롤링 성공",
@@ -1644,11 +1639,6 @@
         ],
         "summary": "크롤링 상태 조회",
         "description": "현재 크롤링 작업의 상태를 조회합니다",
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
         "responses": {
           "200": {
             "description": "상태 조회 성공",
@@ -1711,11 +1701,6 @@
         ],
         "summary": "크롤링 로그 조회",
         "description": "크롤링 작업의 로그를 조회합니다",
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
         "parameters": [
           {
             "in": "query",
