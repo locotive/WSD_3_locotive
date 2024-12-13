@@ -6,29 +6,33 @@ from datetime import datetime
 from .models import Job, Company
 from .params_code import SearchParams
 from aiohttp import ClientTimeout, ClientSession, TCPConnector
+import random
 
 class SaraminCrawler:
     def __init__(self):
         self.search_params = SearchParams()
         self.base_url = "https://www.saramin.co.kr/zf_user/search/recruit"
-        self.timeout = ClientTimeout(total=30, connect=10)
+        self.timeout = ClientTimeout(total=60, connect=20)
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Connection': 'keep-alive'
+            'Connection': 'keep-alive',
+            'Cache-Control': 'max-age=0',
+            'Upgrade-Insecure-Requests': '1'
         }
         
         self.tech_stack = [
-            'python', 'java', 'javascript', 'react',
-            'spring', 'django', 'vue.js', 'flutter'
+            'python', 'java', 'javascript'
         ]
-        self.regions = ['서울', '경기', '인천']
-        self.max_pages = 3
-        self.delay = 3  # 딜레이 증가
+        self.regions = ['서울']
+        self.max_pages = 2
+        self.delay = 5
 
     async def fetch_page(self, session, params):
         """페이지 데이터 가져오기"""
+        await asyncio.sleep(random.uniform(1, 3))
+        
         try:
             async with session.get(
                 self.base_url,
@@ -36,12 +40,16 @@ class SaraminCrawler:
                 headers=self.headers,
                 timeout=self.timeout,
                 ssl=False,
-                allow_redirects=True
+                allow_redirects=True,
+                proxy=None
             ) as response:
                 if response.status == 200:
                     return await response.text()
                 logging.error(f"HTTP {response.status}: {params}")
                 return None
+        except asyncio.TimeoutError:
+            logging.error("요청 시간 초과")
+            return None
         except Exception as e:
             logging.error(f"페이지 요청 실패: {str(e)}")
             return None
@@ -95,8 +103,17 @@ class SaraminCrawler:
 
     async def crawl_jobs(self):
         """채용 정보 크롤링 실행"""
-        connector = TCPConnector(limit=5, force_close=True)
-        async with ClientSession(connector=connector) as session:
+        connector = TCPConnector(
+            limit=3,
+            force_close=True,
+            enable_cleanup_closed=True
+        )
+        
+        async with ClientSession(
+            connector=connector,
+            timeout=self.timeout,
+            trust_env=True
+        ) as session:
             all_jobs = []
             
             for tech in self.tech_stack:
@@ -110,9 +127,9 @@ class SaraminCrawler:
                             'recruitPage': page,
                             'loc_mcd': region,
                             'recruitSort': 'reg_dt',
-                            'recruitPageCount': 40,
-                            'inner_com_type': '1',  # 대기업
-                            'company_cd': '0,1,2,3,4,5,6,7,8,9'  # 모든 기업형태
+                            'recruitPageCount': 20,
+                            'inner_com_type': '1',
+                            'company_cd': '0,1,2,3,4,5,6,7,8,9'
                         }
                         
                         task = asyncio.create_task(self.fetch_and_process(
@@ -122,9 +139,9 @@ class SaraminCrawler:
                         
                         await asyncio.sleep(self.delay)
                     
-                    results = await asyncio.gather(*tasks)
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
                     for jobs in results:
-                        if jobs:
+                        if jobs and not isinstance(jobs, Exception):
                             all_jobs.extend(jobs)
                             
                     logging.info(f"{tech} - {region}: {len(all_jobs)}개 채용공고 수집")
