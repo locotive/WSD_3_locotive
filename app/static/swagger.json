@@ -1606,6 +1606,98 @@
           }
         }
       }
+    },
+    "/crawling/status": {
+      "get": {
+        "tags": ["Crawling"],
+        "summary": "크롤링 상태 조회",
+        "description": "현재 크롤링 작업의 상태를 조회합니다",
+        "responses": {
+          "200": {
+            "description": "상태 조회 성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["running", "stopped"],
+                      "example": "running"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crawling/logs": {
+      "get": {
+        "tags": ["Crawling"],
+        "summary": "크롤링 로그 조회",
+        "description": "크롤링 작업의 로그를 조회합니다",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "date",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "조회할 날짜 (YYYY-MM-DD)"
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "schema": {
+              "type": "string",
+              "enum": ["INFO", "ERROR", "WARNING"]
+            },
+            "description": "로그 레벨"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "로그 조회 성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "success"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "timestamp": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "level": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "details": {
+                            "type": "object"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

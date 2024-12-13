@@ -7,7 +7,8 @@
 ### 크롤링
 - 사람인 채용정보 자동 수집
 - 비동기 크롤링으로 성능 최적화
-- 스케줄링된 자동 업데이트
+- 스케줄링된 자동 업데이트 (매일 새벽 2시)
+- 수동 크롤링 API 제공
 
 ### 사용자 기능
 - JWT 기반 회원 인증
@@ -32,11 +33,10 @@
 ### 크롤링
 - aiohttp
 - BeautifulSoup4
-- Selenium (필요시)
+- APScheduler
 
 ### 모니터링
 - Prometheus
-- APScheduler
 - Logging
 
 ## 설치 방법
@@ -78,78 +78,96 @@ flask db upgrade
 
 ## 실행 방법
 
-1. 개발 서버 실행
+### 로컬 개발 환경
+1. Flask 개발 서버 실행
+```bash
+flask run  # http://localhost:5000
+```
+
+2. API 문서 접속
+```
+http://localhost:5000/api/docs
+```
+
+3. 크롤링 테스트
+- Swagger UI에서 테스트: http://localhost:5000/api/docs
+- 직접 API 호출:
+  - 수동 크롤링: POST http://localhost:5000/crawling/manual
+  - 크롤링 상태: GET http://localhost:5000/crawling/status
+  - 크롤링 로그: GET http://localhost:5000/crawling/logs
+
+### 서버 환경
+1. 서버 실행
 ```bash
 flask run --host=0.0.0.0 --port=17102
 ```
 
-2. 크롤링 스케줄러 실행
-```bash
-python -m app.crawling.scheduler
+2. API 문서
 ```
-
-## 프로젝트 구조
-```
-job-search-api/
-├── app/
-│   ├── __init__.py          # 앱 초기화 및 설정
-│   ├── auth/               # 인증 관련
-│   ├── jobs/              # 채용정보 관련
-│   ├── crawling/          # 크롤링 관련
-│   ├── middleware/        # 미들웨어
-│   ├── common/           # 공통 유틸리티
-│   └── docs/             # API 문서
-├── tests/
-│   ├── unit/            # 단위 테스트
-│   └── integration/     # 통합 테스트
-├── migrations/          # DB 마이그레이션
-├── static/
-│   └── swagger.json    # Swagger 문서
-├── logs/               # 로그 파일
-├── requirements.txt    # 의존성 목록
-└── README.md
+http://113.198.66.75:17102/api/docs
 ```
 
 ## API 문서
 
 Swagger UI: http://113.198.66.75:17102/api/docs
 
-### 주요 엔드포인트
+## API 엔드포인트
 
-#### 인증
-- `POST /auth/register`: 회원가입
+### Authentication (인증)
+- `POST /auth/register`: 회원 가입
 - `POST /auth/login`: 로그인
-- `POST /auth/refresh`: 토큰 갱신
+- `GET /auth/profile`: 회원 정보 조회
+- `PUT /auth/profile`: 회원 정보 수정
+- `DELETE /auth/profile`: 회원 탈퇴
 
-#### 채용정보
-- `GET /jobs`: 채용공고 목록
-- `GET /jobs/search`: 채용공고 검색
-- `GET /jobs/{id}`: 채용공고 상세
+### Jobs (채용공고)
+- `GET /jobs`: 채용공고 목록 조회
+- `POST /jobs`: 채용공고 등록
+- `GET /jobs/{posting_id}`: 채용공고 상세 조회
+- `PUT /jobs/{posting_id}`: 채용공고 수정
+- `DELETE /jobs/{posting_id}`: 채용공고 삭제
 
-#### 지원
+### Applications (지원)
 - `POST /applications`: 채용공고 지원
 - `GET /applications`: 지원 내역 조회
-- `GET /applications/{id}`: 지원 상세
+- `DELETE /applications/{application_id}`: 지원 취소
 
-#### 북마크
-- `POST /bookmarks`: 북마크 추가
-- `GET /bookmarks`: 북마크 목록
-- `DELETE /bookmarks/{id}`: 북마크 삭제
+### Bookmarks (북마크)
+- `GET /bookmarks/check/{posting_id}`: 북마크 여부 확인
+- `POST /bookmarks/add`: 북마크 추가
+- `DELETE /bookmarks/remove/{posting_id}`: 북마크 제거
+- `GET /bookmarks`: 북마크 목록 조회
+
+### Resumes (이력서)
+- `POST /resumes`: 이력서 생성
+- `GET /resumes`: 이력서 목록 조회
+- `GET /resumes/{resume_id}`: 이력서 상세 조회
+- `PUT /resumes/{resume_id}`: 이력서 수정
+- `DELETE /resumes/{resume_id}`: 이력서 삭제
+
+### Crawling (크롤링)
+- `POST /crawling/manual`: 수동 크롤링 실행
+- `GET /crawling/status`: 크롤링 상태 조회
+- `GET /crawling/logs`: 크롤링 로그 조회
 
 ## 포트 구성
-- SSH: 19102
-- Backend(Flask): 17102
-- Database(MySQL): 13102
+- 로컬 개발: 5000
+- 서버 환경:
+  - SSH: 19102
+  - Backend(Flask): 17102
+  - Database(MySQL): 13102
 
 ## 모니터링
 
 ### Prometheus 메트릭
-- 엔드포인트: http://113.198.66.75:17102/metrics
-- 주요 메트릭:
-  - 요청 수
-  - 응답 시간
-  - 에러율
-  - 크롤링 성공/실패
+- 로컬: http://localhost:5000/metrics
+- 서버: http://113.198.66.75:17102/metrics
+
+주요 메트릭:
+- 요청 수
+- 응답 시간
+- 에러율
+- 크롤링 성공/실패
 
 ### 로깅
 - 위치: `logs/`

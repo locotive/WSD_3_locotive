@@ -8,6 +8,7 @@ from .models import Job, Company
 from .config import CrawlingConfig
 from app.database import db
 import asyncio
+from flask import current_app
 
 class SaraminCrawler:
     def __init__(self):
@@ -34,6 +35,7 @@ class SaraminCrawler:
     
     async def crawl_jobs(self):
         """채용 정보 크롤링 실행"""
+        start_time = time.time()
         try:
             self.logger.info("크롤링 시작")
             all_jobs = []
@@ -103,6 +105,15 @@ class SaraminCrawler:
         except Exception as e:
             self.logger.error(f"크롤링 실패: {str(e)}", exc_info=True)
             raise
+        
+        # 로그 기록
+        current_app.logger.info("Crawling completed", extra={
+            'details': {
+                'success_count': success_count,
+                'error_count': error_count,
+                'execution_time': time.time() - start_time
+            }
+        })
 
     def extract_job_info(self, element):
         """채용 정보 추출"""
