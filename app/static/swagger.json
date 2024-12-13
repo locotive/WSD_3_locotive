@@ -1302,7 +1302,7 @@
             "description": "잘못된 요청"
           },
           "401": {
-            "description": "인증 ���패"
+            "description": "인증 실패"
           },
           "500": {
             "description": "서버 에러"
@@ -1876,25 +1876,9 @@
             "type": "string",
             "example": "4,000-5,000만원"
           },
-          "location": {
-            "type": "object",
-            "properties": {
-              "region": {
-                "type": "string",
-                "enum": ["수도권", "광역시", "도", "해외"],
-                "example": "수도권"
-              },
-              "sub_region": {
-                "type": "string",
-                "enum": [
-                  "서울", "경기", "인천",
-                  "부산", "대구", "광주", "대전", "울산", "세종",
-                  "강원", "경남", "경북", "전남", "전북", "충남", "충북", "제주",
-                  "아시아", "북미", "유럽", "오세아니아"
-                ],
-                "example": "서울"
-              }
-            }
+          "location_id": {
+            "type": "integer",
+            "example": 1
           },
           "deadline_date": {
             "type": "string",
@@ -1904,41 +1888,16 @@
           "categories": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "category": {
-                  "type": "string",
-                  "enum": ["개발", "기획", "디자인"],
-                  "example": "개발"
-                },
-                "sub_category": {
-                  "type": "string",
-                  "enum": [
-                    "백엔드", "프론트엔드", "풀스택", "모바일", "데이터", "DevOps",
-                    "서비스기획", "프로젝트관리", "전략기획",
-                    "UX/UI", "웹디자인", "그래픽"
-                  ],
-                  "example": "백엔드"
-                }
-              }
+              "type": "integer"
             },
-            "example": [
-              {
-                "category": "개발",
-                "sub_category": "백엔드"
-              },
-              {
-                "category": "개발",
-                "sub_category": "풀스택"
-              }
-            ]
+            "example": [1, 2]
           },
           "tech_stacks": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "integer"
             },
-            "example": ["Python", "Django", "MySQL"]
+            "example": [1, 2, 3]
           }
         }
       },

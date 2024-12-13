@@ -351,12 +351,15 @@ components:
           example: "Python/Django 백엔드 개발자를 모집합니다."
         experience_level:
           type: string
+          enum: ["신입", "경력", "무관"]
           example: "신입"
         education_level:
           type: string
+          enum: ["고졸", "초대졸", "학사", "석사", "박사"]
           example: "학사"
         employment_type:
           type: string
+          enum: ["정규직", "계약직", "인턴"]
           example: "정규직"
         salary_info:
           type: string
