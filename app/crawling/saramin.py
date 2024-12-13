@@ -7,12 +7,45 @@ from datetime import datetime
 from .models import Job, Company
 from .config import CrawlingConfig
 from app.database import db
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 class SaraminCrawler:
     def __init__(self):
         self.config = CrawlingConfig()
-        self.session = requests.Session()
-        self.session.headers.update(self.config.HEADERS)
+        self.session = self._create_session()
+    
+    def _create_session(self):
+        """요청 세션 생성 및 설정"""
+        session = requests.Session()
+        
+        # 재시도 전략 설정
+        retry_strategy = Retry(
+            total=3,  # 최대 재시도 횟수
+            backoff_factor=0.5,  # 재시도 간격
+            status_forcelist=[500, 502, 503, 504]  # 재시도할 HTTP 상태 코드
+        )
+        
+        # 세션 어댑터 설정
+        adapter = HTTPAdapter(
+            max_retries=retry_strategy,
+            pool_connections=10,
+            pool_maxsize=10
+        )
+        
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
+        
+        # 타임아웃 및 헤더 설정
+        session.headers.update(self.config.HEADERS)
+        session.headers.update({
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'ko-KR,ko;q=0.8,en-US;q=0.5,en;q=0.3',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+        })
+        
+        return session
     
     async def crawl_jobs(self):
         """채용 정보 크롤링 실행"""
@@ -31,7 +64,11 @@ class SaraminCrawler:
             for page in range(1, self.config.MAX_PAGES + 1):
                 try:
                     params['recruitPage'] = page
-                    response = self.session.get(search_url, params=params)
+                    response = self.session.get(
+                        search_url, 
+                        params=params,
+                        timeout=(5, 15)  # (연결 타임아웃, 읽기 타임아웃)
+                    )
                     response.raise_for_status()
                     
                     soup = BeautifulSoup(response.text, 'html.parser')
@@ -44,8 +81,12 @@ class SaraminCrawler:
                         if job_info := self.extract_job_info(element):
                             all_jobs.append(job_info)
                     
-                    time.sleep(random.uniform(1, 2))  # 랜덤 딜레이
+                    time.sleep(random.uniform(2, 3))  # 딜레이 증가
                     
+                except requests.exceptions.RequestException as e:
+                    logging.error(f"페이지 {page} 요청 실패: {str(e)}")
+                    time.sleep(5)  # 오류 발생시 더 긴 대기
+                    continue
                 except Exception as e:
                     logging.error(f"페이지 {page} 처리 중 오류: {str(e)}")
                     continue
