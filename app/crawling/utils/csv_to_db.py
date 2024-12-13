@@ -4,6 +4,30 @@ import csv
 import os
 import logging
 from datetime import datetime
+import re
+
+def parse_deadline(deadline_str):
+    """마감일 문자열을 MySQL date 형식으로 변환"""
+    if not deadline_str or deadline_str.lower() == 'none':
+        return None
+        
+    try:
+        # "~ 01/09(목)" 형식 처리
+        match = re.search(r'(\d{2})/(\d{2})', deadline_str)
+        if match:
+            month, day = match.groups()
+            # 현재 연도 사용
+            year = datetime.now().year
+            # 만약 마감월이 현재월보다 작다면 다음해로 설정
+            current_month = datetime.now().month
+            if int(month) < current_month:
+                year += 1
+            return f"{year}-{month}-{day}"
+            
+        return None
+    except Exception as e:
+        logging.warning(f"날짜 파싱 실패: {deadline_str}, 에러: {str(e)}")
+        return None
 
 def import_csv_to_db(csv_file_path=None):
     """CSV 파일의 채용공고 데이터를 DB에 저장"""
@@ -43,6 +67,9 @@ def import_csv_to_db(csv_file_path=None):
                 else:
                     company_id = company['company_id']
 
+                # 마감일 파싱
+                deadline_date = parse_deadline(row.get('deadline'))
+
                 # 이미 존재하는 공고인지 확인
                 cursor.execute("""
                     SELECT posting_id FROM job_postings 
@@ -70,7 +97,7 @@ def import_csv_to_db(csv_file_path=None):
                         row.get('education', ''),
                         row.get('employment_type', ''),
                         row.get('salary', ''),
-                        row.get('deadline', None),
+                        deadline_date,
                         existing['posting_id']
                     ))
                     updated_count += 1
@@ -97,7 +124,7 @@ def import_csv_to_db(csv_file_path=None):
                         row.get('education', ''),
                         row.get('employment_type', ''),
                         row.get('salary', ''),
-                        row.get('deadline', None)
+                        deadline_date
                     ))
                     saved_count += 1
             
