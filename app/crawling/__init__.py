@@ -22,6 +22,12 @@ scheduler_config = {
 # 스케줄러 초기화
 scheduler = APScheduler()
 
+cache_timeouts = {
+    # ... existing timeouts ...
+    'get_crawling_status': 60,  # 1분
+    'get_crawling_logs': 300    # 5분
+}
+
 def init_app(app):
     """크롤링 모듈 초기화"""
     from .routes import crawling_bp

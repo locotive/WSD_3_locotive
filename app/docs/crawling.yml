@@ -1,6 +1,6 @@
 tags:
   - name: Crawling
-    description: 채용공고 크롤링 API
+    description: 채용공고 크롤링 관련 API
 
 paths:
   /crawling/manual:
@@ -9,6 +9,8 @@ paths:
         - Crawling
       summary: 수동 크롤링 실행
       description: 사람인 채용공고를 수동으로 크롤링합니다
+      security:
+        - BearerAuth: []
       responses:
         '200':
           description: 크롤링 성공
@@ -17,11 +19,137 @@ paths:
               schema:
                 type: object
                 properties:
-                  message:
+                  status:
                     type: string
-                    example: 크롤링 완료
-                  jobs_count:
-                    type: integer
-                    example: 100
+                    example: "success"
+                  data:
+                    type: object
+                    properties:
+                      jobs_count:
+                        type: integer
+                        example: 100
+                      new_jobs:
+                        type: integer
+                        example: 30
+                      updated_jobs:
+                        type: integer
+                        example: 20
+                      failed_jobs:
+                        type: integer
+                        example: 0
+                      execution_time:
+                        type: number
+                        format: float
+                        example: 45.2
+        '401':
+          description: 인증 실패
         '500':
           description: 서버 에러
+
+  /crawling/status:
+    get:
+      tags:
+        - Crawling
+      summary: 크롤링 상태 조회
+      description: 현재 크롤링 작업의 상태를 조회합니다
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 상태 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  data:
+                    type: object
+                    properties:
+                      is_running:
+                        type: boolean
+                        example: false
+                      last_run:
+                        type: string
+                        format: date-time
+                      next_scheduled:
+                        type: string
+                        format: date-time
+                      total_jobs:
+                        type: integer
+                        example: 5000
+                      last_run_stats:
+                        type: object
+                        properties:
+                          success_count:
+                            type: integer
+                          error_count:
+                            type: integer
+                          execution_time:
+                            type: number
+
+  /crawling/logs:
+    get:
+      tags:
+        - Crawling
+      summary: 크롤링 로그 조회
+      description: 크롤링 작업의 로그를 조회합니다
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: date
+          schema:
+            type: string
+            format: date
+          description: 조회할 날짜 (YYYY-MM-DD)
+        - in: query
+          name: level
+          schema:
+            type: string
+            enum: [INFO, ERROR, WARNING]
+          description: 로그 레벨
+      responses:
+        '200':
+          description: 로그 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        timestamp:
+                          type: string
+                          format: date-time
+                        level:
+                          type: string
+                        message:
+                          type: string
+                        details:
+                          type: object
+
+components:
+  schemas:
+    CrawlingStats:
+      type: object
+      properties:
+        total_jobs:
+          type: integer
+        new_jobs:
+          type: integer
+        updated_jobs:
+          type: integer
+        failed_jobs:
+          type: integer
+        execution_time:
+          type: number
+          format: float

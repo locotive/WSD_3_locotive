@@ -1,0 +1,256 @@
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        user_id:
+          type: integer
+          example: 1
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+        name:
+          type: string
+          example: "홍길동"
+        phone:
+          type: string
+          example: "010-1234-5678"
+        birth_date:
+          type: string
+          format: date
+          example: "1990-01-01"
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+          example: "active"
+        created_at:
+          type: string
+          format: date-time
+        last_login:
+          type: string
+          format: date-time
+
+    Company:
+      type: object
+      properties:
+        company_id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: "(주)테크컴퍼니"
+        description:
+          type: string
+          example: "IT 솔루션 전문기업"
+        created_at:
+          type: string
+          format: date-time
+
+    CompanyUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        company_id:
+          type: integer
+        user_id:
+          type: integer
+        role:
+          type: string
+          enum: [admin, member]
+          example: "member"
+        status:
+          type: string
+          enum: [active, inactive]
+          example: "active"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    JobPosting:
+      type: object
+      properties:
+        posting_id:
+          type: integer
+          example: 1
+        company_id:
+          type: integer
+        title:
+          type: string
+          example: "시니어 백엔드 개발자"
+        job_description:
+          type: string
+          example: "Python/Flask 기반의 백엔드 개발..."
+        experience_level:
+          type: string
+          example: "3년 이상"
+        education_level:
+          type: string
+          example: "학사 이상"
+        employment_type:
+          type: string
+          example: "정규직"
+        salary_info:
+          type: string
+          example: "회사 내규에 따름"
+        location_id:
+          type: integer
+        deadline_date:
+          type: string
+          format: date
+        view_count:
+          type: integer
+          example: 100
+        status:
+          type: string
+          enum: [active, closed, deleted]
+        created_at:
+          type: string
+          format: date-time
+        deleted_at:
+          type: string
+          format: date-time
+
+    Location:
+      type: object
+      properties:
+        location_id:
+          type: integer
+        city:
+          type: string
+          example: "서울"
+        district:
+          type: string
+          example: "강남구"
+        created_at:
+          type: string
+          format: date-time
+
+    JobCategory:
+      type: object
+      properties:
+        category_id:
+          type: integer
+        name:
+          type: string
+          example: "백엔드 개발"
+        created_at:
+          type: string
+          format: date-time
+
+    TechStack:
+      type: object
+      properties:
+        stack_id:
+          type: integer
+        name:
+          type: string
+          example: "Python"
+        created_at:
+          type: string
+          format: date-time
+
+    Resume:
+      type: object
+      properties:
+        resume_id:
+          type: integer
+        user_id:
+          type: integer
+        title:
+          type: string
+          example: "백엔드 개발자 이력서"
+        content:
+          type: string
+          format: binary
+        is_primary:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          format: date-time
+
+    Application:
+      type: object
+      properties:
+        application_id:
+          type: integer
+        user_id:
+          type: integer
+        posting_id:
+          type: integer
+        resume_id:
+          type: integer
+        status:
+          type: string
+          enum: [pending, accepted, rejected]
+          example: "pending"
+        applied_at:
+          type: string
+          format: date-time
+
+    Bookmark:
+      type: object
+      properties:
+        bookmark_id:
+          type: integer
+        user_id:
+          type: integer
+        posting_id:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    PostingCategory:
+      type: object
+      properties:
+        posting_id:
+          type: integer
+        category_id:
+          type: integer
+
+    PostingTechStack:
+      type: object
+      properties:
+        posting_id:
+          type: integer
+        stack_id:
+          type: integer
+
+    Error:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "error"
+        message:
+          type: string
+          example: "오류가 발생했습니다"
+        code:
+          type: string
+          example: "INVALID_REQUEST"
+
+    PaginationResponse:
+      type: object
+      properties:
+        total:
+          type: integer
+          example: 100
+        page:
+          type: integer
+          example: 1
+        per_page:
+          type: integer
+          example: 20
+        total_pages:
+          type: integer
+          example: 5
+        items:
+          type: array
+          items:
+            type: object 
