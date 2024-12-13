@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, make_response, g
 from app.jobs.models import JobPosting
-from app.middleware.auth import login_required
+from app.middleware.auth import login_required, company_required
 import logging
 from app.database import get_db
 from app.config.location_config import LocationConfig
@@ -51,6 +51,7 @@ def get_job_postings():
 @jobs_bp.route('/<int:posting_id>', methods=['GET'])
 def get_job_posting(posting_id):
     try:
+        # 기존 상세 정보 조회
         posting, error = JobPosting.get_posting(posting_id)
         if error:
             return make_response(jsonify({
@@ -58,9 +59,15 @@ def get_job_posting(posting_id):
                 "message": error
             }), 404)
 
+        # 관련 공고 추천 추가
+        related_jobs, _ = JobPosting.get_related_jobs(posting_id, limit=5)
+
         return make_response(jsonify({
             "status": "success",
-            "data": posting
+            "data": {
+                "posting": posting,
+                "related_jobs": related_jobs
+            }
         }), 200)
 
     except Exception as e:

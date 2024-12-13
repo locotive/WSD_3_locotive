@@ -726,4 +726,63 @@ class JobPosting:
             logging.error(f"Posting deletion error: {str(e)}")
             return str(e)
         finally:
+            cursor.close()
+
+    @staticmethod
+    def get_related_jobs(posting_id: int, limit: int = 5):
+        """관련 채용공고 추천"""
+        db = get_db()
+        cursor = db.cursor(dictionary=True)
+        
+        try:
+            # 현재 공고의 회사ID와 기술스택 조회
+            cursor.execute("""
+                SELECT company_id, 
+                       GROUP_CONCAT(stack_id) as tech_stacks
+                FROM job_postings j
+                LEFT JOIN posting_tech_stacks pt ON j.posting_id = pt.posting_id
+                WHERE j.posting_id = %s
+                GROUP BY j.posting_id
+            """, (posting_id,))
+            
+            current_job = cursor.fetchone()
+            if not current_job:
+                return [], "Job posting not found"
+            
+            # 관련 공고 조회 (같은 회사의 다른 공고 또는 비슷한 기술스택을 가진 공고)
+            cursor.execute("""
+                SELECT DISTINCT j.*, c.name as company_name,
+                       GROUP_CONCAT(DISTINCT t.name) as tech_stacks
+                FROM job_postings j
+                LEFT JOIN companies c ON j.company_id = c.company_id
+                LEFT JOIN posting_tech_stacks pt ON j.posting_id = pt.posting_id
+                LEFT JOIN tech_stacks t ON pt.stack_id = t.stack_id
+                WHERE j.posting_id != %s 
+                AND j.deleted_at IS NULL
+                AND (j.company_id = %s 
+                     OR pt.stack_id IN (
+                         SELECT stack_id 
+                         FROM posting_tech_stacks 
+                         WHERE posting_id = %s
+                     ))
+                GROUP BY j.posting_id
+                ORDER BY j.created_at DESC
+                LIMIT %s
+            """, (posting_id, current_job['company_id'], posting_id, limit))
+            
+            related_jobs = cursor.fetchall()
+            
+            # tech_stacks 처리
+            for job in related_jobs:
+                if job['tech_stacks']:
+                    job['tech_stacks'] = job['tech_stacks'].split(',')
+                else:
+                    job['tech_stacks'] = []
+                
+            return related_jobs, None
+            
+        except Exception as e:
+            logging.error(f"Related jobs fetch error: {str(e)}")
+            return [], str(e)
+        finally:
             cursor.close() 

@@ -33,6 +33,7 @@
 ### 크롤링
 - aiohttp
 - BeautifulSoup4
+- Selenium
 - APScheduler
 
 ### 모니터링
