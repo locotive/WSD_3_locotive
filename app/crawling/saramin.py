@@ -5,13 +5,14 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from .models import Job, Company
 from .params_code import SearchParams
+from aiohttp import ClientTimeout
 
 class SaraminCrawler:
     def __init__(self):
         self.search_params = SearchParams()
         self.base_url = "https://www.saramin.co.kr/zf_user/search/recruit"
         self.session_config = {
-            'timeout': 30,
+            'timeout': ClientTimeout(total=30),
             'headers': {
                 'User-Agent': f'Mozilla/5.0 JobSearchBot/{datetime.now().strftime("%Y%m%d")}',
                 'Accept': 'text/html,application/xhtml+xml',
