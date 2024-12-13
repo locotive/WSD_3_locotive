@@ -86,6 +86,31 @@ def create_job_posting():
         cursor = db.cursor()
         
         try:
+            # 회사가 없으면 자동 생성
+            cursor.execute("""
+                INSERT INTO companies (name, created_at) 
+                SELECT CONCAT('Company_', %s), CURRENT_TIMESTAMP 
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM users u 
+                    JOIN companies c ON u.company_id = c.company_id 
+                    WHERE u.id = %s
+                )
+            """, (g.user_id, g.user_id))
+            
+            # 생성된 company_id 가져오기 또는 기존 company_id 사용
+            cursor.execute("""
+                SELECT COALESCE(
+                    (SELECT company_id FROM users WHERE id = %s),
+                    LAST_INSERT_ID()
+                )
+            """, (g.user_id,))
+            company_id = cursor.fetchone()[0]
+            
+            # 사용자의 company_id 업데이트
+            cursor.execute("""
+                UPDATE users SET company_id = %s WHERE id = %s
+            """, (company_id, g.user_id))
+            
             # 채용공고 생성
             cursor.execute("""
                 INSERT INTO job_postings (
@@ -96,7 +121,7 @@ def create_job_posting():
                     %s, %s, %s, %s, %s, %s, %s, %s, %s, 'active', CURRENT_TIMESTAMP
                 )
             """, (
-                g.user_id,  # 현재 로그인한 사용자의 ID
+                company_id,
                 data['title'],
                 data['job_description'],
                 data.get('experience_level'),
