@@ -30,25 +30,23 @@ class SaraminCrawler:
         self.session.mount('http://', adapter)
         self.session.mount('https://', adapter)
         
-        # 더 자연스러운 헤더 설정
+        # 더 자연스러운 User-Agent 설정
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
             'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
             'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Cache-Control': 'max-age=0',
-            'Upgrade-Insecure-Requests': '1'
+            'Connection': 'keep-alive'
         })
         
         # 크롤링 설정 조정
         self.keywords = ['python', 'java', 'javascript', 'react', 'node.js', 
                         'spring', 'django', 'vue.js', 'flutter', 'kotlin']
-        self.min_jobs = 100
-        self.max_retries = 5  # 재시도 횟수 증가
-        self.retry_delay = 5  # 재시도 대기 시간 증가
-        self.page_delay = 5   # 페이지 간 대기 시간 증가
-        self.timeout = (5, 30)  # (연결 타임아웃, 읽기 타임아웃)
+        self.min_jobs = 1  
+        self.max_retries = 3
+        self.retry_delay = 2  # 재시도 대기 시간 줄임
+        self.page_delay = 3   # 페이지 간 대기 시간 증가
+        self.timeout = 15    # 타임아웃 증가
 
     def crawl_jobs(self):
         all_jobs = []
@@ -173,8 +171,8 @@ class SaraminCrawler:
     def _crawl_page(self, keyword, page):
         for attempt in range(self.max_retries):
             try:
-                # 랜덤 지연
-                delay = self.page_delay + random.uniform(2, 5)
+                # 랜덤 지연 추가
+                delay = self.page_delay + random.uniform(1, 2)
                 time.sleep(delay)
                 
                 params = {
@@ -186,20 +184,11 @@ class SaraminCrawler:
                     'recruitPageCount': 40
                 }
                 
-                # 프록시와 타임아웃 설정 추가
                 response = self.session.get(
                     self.base_url, 
                     params=params,
-                    timeout=self.timeout,
-                    # proxies=self.proxies,  # 프록시 필요시 주석 해제
-                    verify=True
+                    timeout=self.timeout
                 )
-                
-                if response.status_code == 403:
-                    logging.error(f"접근이 차단됨 (키워드: {keyword}, 페이지: {page})")
-                    time.sleep(60)  # 차단 시 1분 대기
-                    continue
-                    
                 response.raise_for_status()
                 
                 # 응답 확인
@@ -222,12 +211,11 @@ class SaraminCrawler:
                         
                 return jobs
                 
-            except requests.exceptions.Timeout:
-                logging.error(f"타임아웃 발생 (키워드: {keyword}, 페이지: {page}, 시도: {attempt+1}/{self.max_retries})")
-                time.sleep(self.retry_delay * (attempt + 1))
-            except requests.exceptions.RequestException as e:
-                logging.error(f"요청 오류 발생 (키워드: {keyword}, 페이지: {page}, 시도: {attempt+1}/{self.max_retries}): {str(e)}")
-                time.sleep(self.retry_delay * (attempt + 1))
+            except requests.RequestException as e:
+                logging.error(f"페이지 크롤링 중 오류 발생 (키워드: {keyword}, 페이지: {page}, 시도: {attempt+1}/{self.max_retries}): {str(e)}")
+                if attempt < self.max_retries - 1:
+                    time.sleep(self.retry_delay * (attempt + 1))  # 점진적 대기 시간 증가
+                continue
             except Exception as e:
                 logging.error(f"예상치 못한 오류 발생 (키워드: {keyword}, 페이지: {page}): {str(e)}")
                 return []
