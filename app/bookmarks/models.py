@@ -157,4 +157,4 @@ class Bookmark:
             logging.error(f"Bookmarks fetch error: {str(e)}")
             return None, str(e)
         finally:
-            cursor.close() 
+            cursor.close()

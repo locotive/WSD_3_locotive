@@ -77,6 +77,7 @@ def login_required(f):
                 
                 logging.info(f"[Middleware] User data fetched: {user}")
                 g.current_user = user
+                g.user_id = user['user_id']
                 
                 response = f(*args, **kwargs)
                 logging.info(f"[Auth] Function response: {response}")
