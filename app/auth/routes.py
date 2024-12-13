@@ -88,28 +88,28 @@ def login():
         }), 500)
 
 @auth_bp.route('/profile', methods=['GET'])
-@login_required
+# @login_required
 def get_profile():
     try:
-        logging.info(f"[Profile] Request headers: {dict(request.headers)}")
-        logging.info(f"[Profile] Current user: {g.current_user if hasattr(g, 'current_user') else 'No user'}")
+        # 테스트를 위한 임시 로직
+        logging.info("[Profile] Test access without @login_required")
+        logging.info(f"[Profile] Headers: {dict(request.headers)}")
         
-        user_id = g.current_user['user_id']
-        user, error = User.get_profile(user_id)
+        # 테스트용 더미 데이터 반환
+        test_user = {
+            "user_id": 1,
+            "email": "test@example.com",
+            "name": "Test User",
+            "status": "active"
+        }
         
-        if error:
-            return jsonify({
-                "status": "error",
-                "message": error
-            }), 400
-            
         return jsonify({
             "status": "success",
-            "data": user
-        })
-        
+            "data": test_user
+        }), 200
+
     except Exception as e:
-        logging.error(f"[Profile] Error: {str(e)}")
+        logging.error(f"[Profile] Exception: {str(e)}")
         return jsonify({
             "status": "error",
             "message": str(e)
