@@ -18,6 +18,10 @@ class SaraminCrawler:
         self.current_page = 1
         self.error_count = 0
         self.MAX_ERRORS = 3
+        
+        # 로거 설정
+        self.logger = logging.getLogger('crawler')
+        self.logger.setLevel(logging.DEBUG)
     
     def _create_session(self):
         session = requests.Session()
@@ -62,10 +66,12 @@ class SaraminCrawler:
     async def crawl_jobs(self):
         """채용 정보 크롤링 실행"""
         try:
+            self.logger.info("크롤링 시작")
             all_jobs = []
             search_url = f"{self.config.BASE_URL}/zf_user/search/recruit"
             
-            # 검색 파라미터 다양화
+            self.logger.debug(f"검색 URL: {search_url}")
+            
             params = {
                 'searchType': 'search',
                 'searchword': 'python',
@@ -78,55 +84,83 @@ class SaraminCrawler:
                 'panel_count': 'y'
             }
             
+            self.logger.debug(f"검색 파라미터: {params}")
+            
             while self.current_page <= self.config.MAX_PAGES and self.error_count < self.MAX_ERRORS:
                 try:
                     params['recruitPage'] = self.current_page
                     params['page'] = self.current_page
                     
+                    self.logger.info(f"페이지 {self.current_page} 크롤링 시작")
+                    
                     # 랜덤 지연 시간 추가
-                    delay = random.uniform(2, 5)
+                    delay = random.uniform(5, 8)
+                    self.logger.debug(f"대기 시간: {delay}초")
                     await asyncio.sleep(delay)
                     
+                    self.logger.debug(f"HTTP 요청 시작: {search_url}")
                     response = self.session.get(
                         search_url,
                         params=params,
-                        timeout=(15, 30)  # (연결 타임아웃, 읽기 타임아웃)
+                        timeout=(30, 60)  # (연결 타임아웃, 읽기 타임아웃)
                     )
+                    self.logger.debug(f"HTTP 응답 상태 코드: {response.status_code}")
+                    self.logger.debug(f"HTTP 응답 헤더: {dict(response.headers)}")
+                    
                     response.raise_for_status()
                     
                     soup = BeautifulSoup(response.text, 'html.parser')
                     job_elements = soup.select('.item_recruit')
                     
+                    self.logger.info(f"페이지 {self.current_page}에서 {len(job_elements)}개의 채용공고 발견")
+                    
                     if not job_elements:
+                        self.logger.warning(f"페이지 {self.current_page}에서 채용공고를 찾을 수 없음")
                         if self.error_count < self.MAX_ERRORS:
                             self.error_count += 1
+                            self.logger.warning(f"에러 카운트 증가: {self.error_count}/{self.MAX_ERRORS}")
                             await asyncio.sleep(10)
                             continue
                         else:
+                            self.logger.error("최대 에러 횟수 초과")
                             break
                     
                     for element in job_elements:
                         if job_info := self.extract_job_info(element):
                             all_jobs.append(job_info)
                     
+                    self.logger.info(f"페이지 {self.current_page} 크롤링 완료")
                     self.current_page += 1
-                    self.error_count = 0  # 성공시 에러 카운트 리셋
+                    self.error_count = 0
+                    
+                except requests.exceptions.Timeout as e:
+                    self.logger.error(f"타임아웃 발생: {str(e)}")
+                    self.logger.error(f"현재 설정: 연결 타임아웃 30초, 읽기 타임아웃 60초")
+                    self.error_count += 1
+                    await asyncio.sleep(30)
+                    
+                except requests.exceptions.RequestException as e:
+                    self.logger.error(f"HTTP 요청 실패: {str(e)}")
+                    self.logger.error(f"요청 URL: {search_url}")
+                    self.logger.error(f"요청 파라미터: {params}")
+                    self.error_count += 1
+                    await asyncio.sleep(30)
                     
                 except Exception as e:
-                    logging.error(f"페이지 {self.current_page} 처리 중 오류: {str(e)}")
+                    self.logger.error(f"예상치 못한 오류 발생: {str(e)}", exc_info=True)
                     self.error_count += 1
-                    if self.error_count >= self.MAX_ERRORS:
-                        break
-                    await asyncio.sleep(15)  # 오류 발생시 더 긴 대기
+                    await asyncio.sleep(30)
             
-            # 수집된 데이터 저장
+            self.logger.info(f"전체 수집된 채용공고 수: {len(all_jobs)}")
+            
             if all_jobs:
                 saved_count = await self.save_jobs(all_jobs)
+                self.logger.info(f"저장된 채용공고 수: {saved_count}")
                 return saved_count
             return 0
             
         except Exception as e:
-            logging.error(f"크롤링 실패: {str(e)}")
+            self.logger.error(f"크롤링 실패: {str(e)}", exc_info=True)
             raise
 
     def extract_job_info(self, element):
