@@ -44,7 +44,7 @@ def create_app():
     # CORS 설정 수정
     CORS(app, resources={
         r"/*": {
-            "origins": "*",  # 개발 환경에서는 모든 도메인 허용
+            "origins": "*",
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization"],
             "expose_headers": ["Content-Type", "Authorization"],
@@ -195,6 +195,7 @@ def create_app():
         g.start_time = time.time()
         # 요청 로깅
         logger.log_request()
+        logging.info(f"[Request] Headers: {dict(request.headers)}")  # 헤더 로깅 추가
         
         # 메모리 메트릭 업데이트
         metrics.update_memory_metrics()
@@ -211,40 +212,6 @@ def create_app():
         'get_location_trends': 86400
     }
 
-    def apply_middleware(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            # API 문서, 정적 파일, 메트릭스는 제외
-            if request.path.startswith(('/api/docs', '/static', '/metrics')):
-                return f(*args, **kwargs)
-            
-            # 로깅 추가
-            logging.info(f"[Global Middleware] Processing: {request.method} {request.path}")
-            
-            # 인증이 필요없는 엔드포인트는 제외
-            if request.path in ['/auth/login', '/auth/register']:
-                wrapped = f
-            else:
-                # Authorization 헤더 검사
-                auth_header = request.headers.get('Authorization')
-                logging.info(f"[Global Middleware] Auth header: {auth_header}")
-                
-                if not auth_header:
-                    return jsonify({
-                        "status": "error",
-                        "message": "Authentication required"
-                    }), 401
-                
-                # 나머지 인증 로직...
-                
-            return wrapped(*args, **kwargs)
-        return decorated_function
-
-    # 모든 라우트에 미들웨어 적용
-    for endpoint in app.view_functions:
-        if not endpoint.startswith(('static', 'swagger')):  # 특정 엔드포인트 제외
-            app.view_functions[endpoint] = apply_middleware(app.view_functions[endpoint])
-
     @app.after_request
     def after_request(response):
         # 메트릭스 업데이트
@@ -254,16 +221,10 @@ def create_app():
         if hasattr(g, 'start_time'):
             duration = time.time() - g.start_time
             metrics.update_latency_metrics(request.endpoint, duration)
-            logger.log_performance(duration * 1000)  # ms로 변환
+            logger.log_performance(duration * 1000)
         
         # 응답 로깅
-        logger.log_response(response)  # request 인자 제거
-        
-        # DB 커넥션 풀 메트릭스 업데이트
-        try:
-            metrics.update_db_metrics(db_pool.pool_size)
-        except:
-            pass  # DB 트릭스 업데이트 실패 시 무시
+        logger.log_response(response)
         
         return response
 
