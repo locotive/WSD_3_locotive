@@ -5,6 +5,7 @@ from datetime import datetime
 import time
 from .models import Job, Company
 from sqlalchemy.exc import IntegrityError
+from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy import exists
 
 class SaraminCrawler:
