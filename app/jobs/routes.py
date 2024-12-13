@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, make_response, g
 from app.jobs.models import JobPosting
 from app.middleware.auth import login_required, company_required
 import logging
+from app.database.db import get_db
 
 jobs_bp = Blueprint('jobs', __name__, url_prefix='/jobs')
 
@@ -81,17 +82,81 @@ def create_job_posting():
                     "message": f"Missing required field: {field}"
                 }), 400)
 
-        posting_id, error = JobPosting.create_posting(g.company_id, data)
-        if error:
+        # 현재 로그인한 사용자의 company_id 가져오기
+        db = get_db()
+        cursor = db.cursor()
+        
+        try:
+            # users 테이블에서 company_id 조회
+            cursor.execute("""
+                SELECT company_id FROM users 
+                WHERE id = %s
+            """, (g.user_id,))
+            
+            result = cursor.fetchone()
+            if not result or not result[0]:
+                return make_response(jsonify({
+                    "status": "error",
+                    "message": "User is not associated with any company"
+                }), 403)
+            
+            company_id = result[0]
+            
+            # 채용공고 생성
+            cursor.execute("""
+                INSERT INTO job_postings (
+                    company_id, title, job_description, experience_level,
+                    education_level, employment_type, salary_info,
+                    location_id, deadline_date, created_at, updated_at
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
+                )
+            """, (
+                company_id,
+                data['title'],
+                data['job_description'],
+                data.get('experience_level'),
+                data.get('education_level'),
+                data.get('employment_type'),
+                data.get('salary_info'),
+                data.get('location_id'),
+                data.get('deadline_date')
+            ))
+            
+            posting_id = cursor.lastrowid
+            
+            # 카테고리 연결
+            if 'categories' in data:
+                for category_id in data['categories']:
+                    cursor.execute("""
+                        INSERT INTO job_categories (job_id, category_id)
+                        VALUES (%s, %s)
+                    """, (posting_id, category_id))
+            
+            # 기술 스택 연결
+            if 'tech_stacks' in data:
+                for tech_id in data['tech_stacks']:
+                    cursor.execute("""
+                        INSERT INTO job_tech_stacks (job_id, tech_stack_id)
+                        VALUES (%s, %s)
+                    """, (posting_id, tech_id))
+            
+            db.commit()
+            
+            return make_response(jsonify({
+                "status": "success",
+                "data": {"posting_id": posting_id}
+            }), 201)
+            
+        except Exception as e:
+            db.rollback()
+            logging.error(f"Job posting creation error: {str(e)}")
             return make_response(jsonify({
                 "status": "error",
-                "message": error
-            }), 400)
-
-        return make_response(jsonify({
-            "status": "success",
-            "data": {"posting_id": posting_id}
-        }), 201)
+                "message": str(e)
+            }), 500)
+        finally:
+            cursor.close()
 
     except Exception as e:
         logging.error(f"Job posting creation error: {str(e)}")
