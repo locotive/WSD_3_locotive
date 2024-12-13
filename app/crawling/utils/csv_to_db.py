@@ -1,6 +1,5 @@
 from flask import current_app
-from app.database import db
-from app.jobs.models import Job
+from app.database import get_db
 import csv
 import os
 import logging
@@ -8,6 +7,9 @@ from datetime import datetime
 
 def import_csv_to_db(csv_file_path=None):
     """CSV 파일의 채용공고 데이터를 DB에 저장"""
+    db = get_db()
+    cursor = db.cursor()
+
     try:
         # CSV 파일 경로가 지정되지 않은 경우 최신 파일 사용
         if not csv_file_path:
@@ -16,7 +18,6 @@ def import_csv_to_db(csv_file_path=None):
             if not csv_files:
                 logging.error("No CSV files found")
                 return 0
-            # 가장 최근 파일 선택
             csv_file_path = os.path.join(csv_dir, sorted(csv_files)[-1])
 
         saved_count = 0
@@ -27,44 +28,65 @@ def import_csv_to_db(csv_file_path=None):
             
             for row in reader:
                 # 이미 존재하는 공고인지 확인
-                existing_job = Job.query.filter_by(
-                    title=row['title'],
-                    company_name=row['company_name']
-                ).first()
+                cursor.execute("""
+                    SELECT posting_id FROM job_postings 
+                    WHERE title = %s AND company_name = %s
+                """, (row['title'], row['company_name']))
                 
-                if existing_job:
+                existing = cursor.fetchone()
+                
+                if existing:
                     # 기존 공고 업데이트
-                    existing_job.location = row['location']
-                    existing_job.experience = row['experience']
-                    existing_job.education = row['education']
-                    existing_job.employment_type = row['employment_type']
-                    existing_job.deadline = row['deadline']
-                    existing_job.tech_stacks = row['tech_stack']
-                    existing_job.updated_at = datetime.now()
+                    cursor.execute("""
+                        UPDATE job_postings 
+                        SET location = %s,
+                            experience = %s,
+                            education = %s,
+                            employment_type = %s,
+                            deadline = %s,
+                            tech_stacks = %s,
+                            updated_at = NOW()
+                        WHERE posting_id = %s
+                    """, (
+                        row['location'],
+                        row['experience'],
+                        row['education'],
+                        row['employment_type'],
+                        row['deadline'],
+                        row['tech_stack'],
+                        existing[0]
+                    ))
                     updated_count += 1
                 else:
                     # 새 공고 추가
-                    new_job = Job(
-                        title=row['title'],
-                        company_name=row['company_name'],
-                        location=row['location'],
-                        experience=row['experience'],
-                        education=row['education'],
-                        employment_type=row['employment_type'],
-                        deadline=row['deadline'],
-                        tech_stacks=row['tech_stack']
-                    )
-                    db.session.add(new_job)
+                    cursor.execute("""
+                        INSERT INTO job_postings (
+                            title, company_name, location, experience,
+                            education, employment_type, deadline, tech_stacks,
+                            created_at, updated_at
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                    """, (
+                        row['title'],
+                        row['company_name'],
+                        row['location'],
+                        row['experience'],
+                        row['education'],
+                        row['employment_type'],
+                        row['deadline'],
+                        row['tech_stack']
+                    ))
                     saved_count += 1
             
-            db.session.commit()
+            db.commit()
             logging.info(f"CSV import completed: {saved_count} new jobs saved, {updated_count} jobs updated")
             return saved_count + updated_count
             
     except Exception as e:
-        db.session.rollback()
+        db.rollback()
         logging.error(f"Failed to import CSV: {str(e)}")
         raise
+    finally:
+        cursor.close()
 
 # CLI 실행을 위한 코드
 if __name__ == '__main__':
