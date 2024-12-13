@@ -14,6 +14,7 @@ from datetime import datetime
 from .models import Job, Company
 from .config import CrawlingConfig
 from app.database import db
+import shutil
 
 class SaraminCrawler:
     def __init__(self):
@@ -35,16 +36,40 @@ class SaraminCrawler:
             chrome_options.add_argument('--disable-dev-shm-usage')
             chrome_options.add_argument('--disable-gpu')
             chrome_options.add_argument('--window-size=1920x1080')
-            chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+            chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+            
+            # 메모리 및 성능 관련 옵션
+            chrome_options.add_argument('--disable-extensions')
+            chrome_options.add_argument('--disable-infobars')
+            chrome_options.add_argument('--disable-notifications')
+            chrome_options.add_argument('--disable-popup-blocking')
+            chrome_options.add_argument('--disable-web-security')
+            chrome_options.add_argument('--ignore-certificate-errors')
+            chrome_options.add_argument('--start-maximized')
+            chrome_options.add_argument('--single-process')
+            
             chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
             chrome_options.add_experimental_option('useAutomationExtension', False)
             
-            # Chrome 실행 파일 경로 지정
-            chrome_options.binary_location = "/usr/bin/google-chrome"
+            # ChromeDriver 직접 설정
+            chromedriver_path = shutil.which('chromedriver')
+            if not chromedriver_path:
+                raise Exception("ChromeDriver를 찾을 수 없습니다.")
             
-            # WebDriver 초기화
-            service = Service(ChromeDriverManager(chrome_type="google-chrome").install())
-            self.driver = webdriver.Chrome(service=service, options=chrome_options)
+            service = Service(executable_path=chromedriver_path)
+            
+            capabilities = webdriver.DesiredCapabilities.CHROME.copy()
+            capabilities['pageLoadStrategy'] = 'eager'
+            
+            self.driver = webdriver.Chrome(
+                service=service,
+                options=chrome_options,
+                desired_capabilities=capabilities
+            )
+            
+            # 타임아웃 설정
+            self.driver.set_page_load_timeout(30)
+            self.driver.set_script_timeout(30)
             
             # 자동화 감지 우회
             self.driver.execute_cdp_cmd('Network.setUserAgentOverride', {
@@ -107,7 +132,7 @@ class SaraminCrawler:
                     break
                     
                 except Exception as e:
-                    logging.error(f"페이지 {page} 처리 중 오류: {str(e)}")
+                    logging.error(f"페이지 {page} ���리 중 오류: {str(e)}")
                     continue
             
             # 수집된 데이터 저장
