@@ -39,8 +39,28 @@ class SaraminCrawler:
             chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
             chrome_options.add_experimental_option('useAutomationExtension', False)
             
-            # WebDriver 초기화
-            service = Service(ChromeDriverManager().install())
+            # ChromeDriver 설정
+            import os
+            import glob
+            
+            # ChromeDriver 다운로드
+            driver_path = ChromeDriverManager().install()
+            driver_dir = os.path.dirname(driver_path)
+            
+            # 실제 chromedriver 실행 파일 찾기
+            chromedriver_path = None
+            for file in glob.glob(os.path.join(driver_dir, '**', 'chromedriver'), recursive=True):
+                if os.path.isfile(file):
+                    chromedriver_path = file
+                    break
+                    
+            if not chromedriver_path:
+                raise Exception("ChromeDriver 실행 파일을 찾을 수 없습니다.")
+            
+            # 실행 권한 설정
+            os.chmod(chromedriver_path, 0o755)
+            
+            service = Service(chromedriver_path)
             self.driver = webdriver.Chrome(service=service, options=chrome_options)
             
             # 자동화 감지 우회
@@ -51,11 +71,13 @@ class SaraminCrawler:
                 "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
             )
             
+            return True
+            
         except Exception as e:
             logging.error(f"WebDriver 설정 실패: {str(e)}")
             if self.display:
                 self.display.stop()
-            raise
+            return False
 
     async def crawl_jobs(self):
         """채용 정보 크롤링 실행"""
