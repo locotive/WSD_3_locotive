@@ -30,7 +30,7 @@ class SaraminCrawler:
             
             # Chrome 옵션 설정
             chrome_options = Options()
-            chrome_options.add_argument('--headless=new')  # 새로운 headless 모드
+            chrome_options.add_argument('--headless=new')
             chrome_options.add_argument('--no-sandbox')
             chrome_options.add_argument('--disable-dev-shm-usage')
             chrome_options.add_argument('--disable-gpu')
@@ -51,15 +51,20 @@ class SaraminCrawler:
                 "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
             )
             
+            return True
+            
         except Exception as e:
             logging.error(f"WebDriver 설정 실패: {str(e)}")
             if self.display:
                 self.display.stop()
-            raise
+            return False
 
     async def crawl_jobs(self):
         """채용 정보 크롤링 실행"""
         try:
+            if not self.setup_driver():
+                raise Exception("WebDriver 초기화 실패")
+                
             all_jobs = []
             search_url = f"{self.config.BASE_URL}/zf_user/search/recruit"
             
@@ -106,8 +111,22 @@ class SaraminCrawler:
             saved_count = await self.save_jobs(all_jobs)
             return saved_count
             
+        except Exception as e:
+            logging.error(f"크롤링 실패: {str(e)}")
+            raise
+            
         finally:
-            self.driver.quit()
+            if self.driver:
+                try:
+                    self.driver.quit()
+                except Exception as e:
+                    logging.error(f"드라이버 종료 실패: {str(e)}")
+                    
+            if self.display:
+                try:
+                    self.display.stop()
+                except Exception as e:
+                    logging.error(f"디스플레이 종료 실패: {str(e)}")
 
     def extract_job_info(self, element):
         """채용 정보 추출"""
