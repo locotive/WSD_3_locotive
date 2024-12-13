@@ -46,12 +46,25 @@ class Resume:
 
         try:
             cursor.execute("""
-                SELECT * FROM resumes 
+                SELECT 
+                    resume_id,
+                    user_id,
+                    title,
+                    CONVERT(content USING utf8) as content,
+                    is_primary,
+                    created_at
+                FROM resumes 
                 WHERE user_id = %s 
                 ORDER BY is_primary DESC, created_at DESC
             """, (user_id,))
             
-            return cursor.fetchall(), None
+            resumes = cursor.fetchall()
+            # bytes를 문자열로 변환
+            for resume in resumes:
+                if isinstance(resume['content'], bytes):
+                    resume['content'] = resume['content'].decode('utf-8')
+                    
+            return resumes, None
 
         except Exception as e:
             logging.error(f"Resume fetch error: {str(e)}")
@@ -66,14 +79,25 @@ class Resume:
 
         try:
             cursor.execute("""
-                SELECT * FROM resumes 
+                SELECT 
+                    resume_id,
+                    user_id,
+                    title,
+                    CONVERT(content USING utf8) as content,
+                    is_primary,
+                    created_at
+                FROM resumes 
                 WHERE resume_id = %s AND user_id = %s
             """, (resume_id, user_id))
             
             resume = cursor.fetchone()
             if not resume:
                 return None, "Resume not found"
-                
+            
+            # bytes를 문자열로 변환
+            if isinstance(resume['content'], bytes):
+                resume['content'] = resume['content'].decode('utf-8')
+            
             return resume, None
 
         except Exception as e:
