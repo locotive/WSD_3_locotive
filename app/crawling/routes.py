@@ -6,7 +6,6 @@ import logging
 crawling_bp = Blueprint('crawling', __name__)
 
 @crawling_bp.route('/manual', methods=['POST'])
-@login_required  # 관리자만 실행할 수 있도록 권한 체크 추가 가능
 def manual_crawling():
     try:
         crawler = SaraminCrawler()

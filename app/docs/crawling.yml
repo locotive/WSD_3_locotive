@@ -9,8 +9,6 @@ paths:
         - Crawling
       summary: 수동 크롤링 실행
       description: 사람인 채용공고를 수동으로 크롤링합니다
-      security:
-        - BearerAuth: []
       responses:
         '200':
           description: 크롤링 성공
@@ -25,7 +23,5 @@ paths:
                   jobs_count:
                     type: integer
                     example: 100
-        '401':
-          description: 인증 실패
         '500':
-          description: 서버 에러 
+          description: 서버 에러
