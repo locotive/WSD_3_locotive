@@ -88,6 +88,7 @@ flask run  # http://localhost:5000
 2. API 문서 접속
 ```
 http://localhost:5000/api/docs
+http://113.198.66.75:17102/api/docs
 ```
 
 3. 크롤링 테스트
