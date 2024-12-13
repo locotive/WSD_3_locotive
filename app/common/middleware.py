@@ -20,6 +20,7 @@ def login_required(f):
                 }), 401
                 
             if not auth_header.startswith('Bearer '):
+                logging.error("[Auth] Invalid Authorization format")
                 return jsonify({
                     "status": "error",
                     "message": "Invalid Authorization format"
@@ -32,6 +33,7 @@ def login_required(f):
                 logging.info(f"[Auth] JWT_SECRET_KEY exists: {bool(secret_key)}")
                 
                 if not secret_key:
+                    logging.error("[Auth] JWT_SECRET_KEY not found")
                     return jsonify({
                         "status": "error",
                         "message": "Server configuration error"
@@ -41,6 +43,7 @@ def login_required(f):
                 logging.info(f"[Middleware] Token payload: {payload}")
                 
                 if 'user_id' not in payload:
+                    logging.error("[Auth] user_id not found in payload")
                     return jsonify({
                         "status": "error",
                         "message": "Invalid token content"
@@ -63,6 +66,7 @@ def login_required(f):
                 cursor.close()
 
                 if not user:
+                    logging.error(f"[Auth] User not found for ID: {user_id}")
                     return jsonify({
                         "status": "error",
                         "message": "User not found"
@@ -72,9 +76,11 @@ def login_required(f):
                 g.current_user = user
                 
                 response = f(*args, **kwargs)
+                logging.info(f"[Auth] Function response: {response}")
                 return response
 
-            except jwt.ExpiredSignatureError:
+            except jwt.ExpiredSignatureError as e:
+                logging.error(f"[Auth] Token expired: {str(e)}")
                 return jsonify({
                     "status": "error",
                     "message": "Token has expired"
