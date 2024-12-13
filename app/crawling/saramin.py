@@ -4,7 +4,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
-from selenium.webdriver.chrome.service import Service
 from pyvirtualdisplay import Display
 import logging
 import time
@@ -43,8 +42,6 @@ class SaraminCrawler:
             chrome_options.add_argument(f'--user-data-dir={temp_dir}/chrome')
             chrome_options.add_argument('--window-size=1920x1080')
             chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-            
-            # 메모리 및 성능 관련 옵션
             chrome_options.add_argument('--disable-extensions')
             chrome_options.add_argument('--disable-infobars')
             chrome_options.add_argument('--disable-notifications')
@@ -57,17 +54,8 @@ class SaraminCrawler:
             chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
             chrome_options.add_experimental_option('useAutomationExtension', False)
             
-            # ChromeDriver 설정
-            service = Service('/usr/bin/chromedriver')
-            
-            capabilities = webdriver.DesiredCapabilities.CHROME.copy()
-            capabilities['pageLoadStrategy'] = 'eager'
-            
-            self.driver = webdriver.Chrome(
-                service=service,
-                options=chrome_options,
-                desired_capabilities=capabilities
-            )
+            # ChromeDriver 직접 실행
+            self.driver = webdriver.Chrome(options=chrome_options)
             
             # 타임아웃 설정
             self.driver.set_page_load_timeout(30)
@@ -124,7 +112,7 @@ class SaraminCrawler:
                         if job_info := self.extract_job_info(element):
                             all_jobs.append(job_info)
                     
-                    # 다음 페이지로 ��동
+                    # 다음 페이지로 이동
                     next_page = f"{search_url}?{query_string}&recruitPage={page + 1}"
                     self.driver.get(next_page)
                     time.sleep(random.uniform(2, 4))  # 랜덤 딜레이
