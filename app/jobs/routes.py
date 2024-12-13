@@ -82,37 +82,20 @@ def create_job_posting():
                     "message": f"Missing required field: {field}"
                 }), 400)
 
-        # 현재 로��인한 사용자의 company_id 가져오기
         db = get_db()
         cursor = db.cursor()
         
         try:
-            # users 테이블에서 company_id 조회
-            cursor.execute("""
-                SELECT company_id FROM users 
-                WHERE id = %s
-            """, (g.user_id,))
-            
-            result = cursor.fetchone()
-            if not result or not result[0]:
-                return make_response(jsonify({
-                    "status": "error",
-                    "message": "User is not associated with any company"
-                }), 403)
-            
-            company_id = result[0]
-            
             # 채용공고 생성
             cursor.execute("""
                 INSERT INTO job_postings (
-                    company_id, title, job_description, experience_level,
+                    title, description, experience_level,
                     education_level, employment_type, salary_info,
                     location_id, deadline_date, created_at, updated_at
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
+                    %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
                 )
             """, (
-                company_id,
                 data['title'],
                 data['job_description'],
                 data.get('experience_level'),
