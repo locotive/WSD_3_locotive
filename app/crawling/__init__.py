@@ -3,6 +3,7 @@ from flask_apscheduler import APScheduler
 import pytz
 from apscheduler.schedulers.background import BackgroundScheduler
 import os
+import asyncio
 
 # 타임존 환경 변수 설정
 os.environ['TZ'] = 'Asia/Seoul'
@@ -41,9 +42,9 @@ def init_app(app):
                     try:
                         from .saramin import SaraminCrawler
                         crawler = SaraminCrawler()
-                        jobs = crawler.crawl_jobs()
-                        saved_count = crawler.save_to_db(jobs)
-                        app.logger.info(f"Scheduled crawling completed: {saved_count} jobs saved")
+                        # 비동기 크롤러 실행
+                        asyncio.run(crawler.crawl())
+                        app.logger.info("Scheduled crawling completed")
                     except Exception as e:
                         app.logger.error(f"Scheduled crawling failed: {str(e)}")
             

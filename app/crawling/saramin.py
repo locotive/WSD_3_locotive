@@ -1,37 +1,30 @@
-import requests
-from bs4 import BeautifulSoup
+import aiohttp
+import asyncio
 import logging
-from datetime import datetime
+import random
 import time
+from bs4 import BeautifulSoup
+from aiohttp import ClientTimeout
+from aiohttp_retry import RetryClient, ExponentialRetry
 from .models import Job, Company
 from sqlalchemy.exc import IntegrityError
-from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy import exists
-import random
 
 class SaraminCrawler:
     def __init__(self):
         self.base_url = "https://www.saramin.co.kr/zf_user/search/recruit"
         
-        # 프록시 설정 (필요한 경우 실제 프록시로 교체)
-        self.proxies = {
-            'http': 'http://proxy.example.com:8080',
-            'https': 'http://proxy.example.com:8080'
-        }
+        # 기본 설정
+        self.keywords = ['python', 'java', 'javascript', 'react', 'node.js', 
+                        'spring', 'django', 'vue.js', 'flutter', 'kotlin']
+        self.min_jobs = 100
+        self.max_retries = 5
+        self.retry_delay = 5
+        self.page_delay = 5
         
-        # 연결 어댑터 설정
-        self.session = requests.Session()
-        adapter = requests.adapters.HTTPAdapter(
-            pool_connections=100,
-            pool_maxsize=100,
-            max_retries=3,
-            pool_block=False
-        )
-        self.session.mount('http://', adapter)
-        self.session.mount('https://', adapter)
-        
-        # 더 자연스러운 헤더 설정
-        self.session.headers.update({
+        # aiohttp 설정
+        self.timeout = ClientTimeout(total=30, connect=10)
+        self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -39,36 +32,99 @@ class SaraminCrawler:
             'Connection': 'keep-alive',
             'Cache-Control': 'max-age=0',
             'Upgrade-Insecure-Requests': '1'
-        })
+        }
+
+    async def _crawl_page(self, session, keyword, page):
+        retry_options = ExponentialRetry(
+            attempts=self.max_retries,
+            start_timeout=1,
+            max_timeout=10,
+            factor=2
+        )
         
-        # 크롤링 설정 조정
-        self.keywords = ['python', 'java', 'javascript', 'react', 'node.js', 
-                        'spring', 'django', 'vue.js', 'flutter', 'kotlin']
-        self.min_jobs = 100
-        self.max_retries = 5  # 재시도 횟수 증가
-        self.retry_delay = 5  # 재시도 대기 시간 증가
-        self.page_delay = 5   # 페이지 간 대기 시간 증가
-        self.timeout = (5, 30)  # (연결 타임아웃, 읽기 타임아웃)
-
-    def crawl_jobs(self):
-        all_jobs = []
-        for keyword in self.keywords:
-            logging.info(f"Starting crawl for keyword: {keyword}")
+        async with RetryClient(
+            client_session=session,
+            retry_options=retry_options
+        ) as client:
             try:
-                jobs = self.crawl_keyword_pages(keyword)
-                all_jobs.extend(jobs)
-                logging.info(f"Keyword '{keyword}': Collected {len(jobs)} jobs")
+                # 랜덤 지연
+                await asyncio.sleep(self.page_delay + random.uniform(2, 5))
+                
+                params = {
+                    'searchType': 'search',
+                    'searchword': keyword,
+                    'start': page,
+                    'recruitPage': page,
+                    'recruitSort': 'relation',
+                    'recruitPageCount': 40
+                }
+                
+                async with client.get(
+                    self.base_url,
+                    params=params,
+                    headers=self.headers,
+                    timeout=self.timeout,
+                    ssl=False  # SSL 검증 비활성화
+                ) as response:
+                    if response.status == 403:
+                        logging.error(f"접근이 차단됨 (키워드: {keyword}, 페이지: {page})")
+                        await asyncio.sleep(60)
+                        return []
+                        
+                    response.raise_for_status()
+                    html = await response.text()
+                    
+                    if '채용정보가 없습니다' in html:
+                        logging.info(f"검색 결과 없음 (키워드: {keyword}, 페이지: {page})")
+                        return []
+                    
+                    soup = BeautifulSoup(html, 'html.parser')
+                    job_items = soup.select('.item_recruit')
+                    
+                    if not job_items:
+                        logging.warning(f"채용 항목을 찾을 수 없음 (키워드: {keyword}, 페이지: {page})")
+                        return []
+                    
+                    jobs = []
+                    for job in job_items:
+                        job_data = self._parse_job_item(job)
+                        if job_data:
+                            jobs.append(job_data)
+                            
+                    return jobs
+                    
+            except asyncio.TimeoutError:
+                logging.error(f"타임아웃 발생 (키워드: {keyword}, 페이지: {page})")
+                return []
             except Exception as e:
-                logging.error(f"Error crawling keyword '{keyword}': {str(e)}")
-        logging.info(f"Total jobs collected: {len(all_jobs)}")
-        return all_jobs
-    
-    def crawl_keyword_pages(self, keyword):
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            futures = [executor.submit(self._crawl_page, keyword, page) for page in range(1, 11)]
-            results = [future.result() for future in futures]
-        return [job for result in results for job in result if result]
+                logging.error(f"예상치 못한 오류 발생 (키워드: {keyword}, 페이지: {page}): {str(e)}")
+                return []
 
+    async def crawl(self):
+        async with aiohttp.ClientSession() as session:
+            for keyword in self.keywords:
+                logging.info(f"Starting crawl for keyword: {keyword}")
+                jobs = []
+                tasks = []
+                
+                # 병렬로 페이지 크롤링
+                for page in range(1, 11):
+                    task = asyncio.create_task(self._crawl_page(session, keyword, page))
+                    tasks.append(task)
+                
+                # 모든 태스크 완료 대기
+                results = await asyncio.gather(*tasks)
+                for page_jobs in results:
+                    jobs.extend(page_jobs)
+                
+                logging.info(f"Keyword '{keyword}': Collected {len(jobs)} jobs")
+                
+                # 결과 처리
+                for job in jobs:
+                    try:
+                        self._save_job(job)
+                    except Exception as e:
+                        logging.error(f"작업 저장 중 오류 발생: {str(e)}")
 
     def _filter_duplicates(self, new_jobs, existing_jobs):
         # 메모리상의 중복 제거
@@ -170,66 +226,42 @@ class SaraminCrawler:
         logging.info(f"Saved {saved_count} new jobs, found {duplicate_count} duplicates")
         return saved_count
 
-    def _crawl_page(self, keyword, page):
-        for attempt in range(self.max_retries):
-            try:
-                # 랜덤 지연
-                delay = self.page_delay + random.uniform(2, 5)
-                time.sleep(delay)
-                
-                params = {
-                    'searchType': 'search',
-                    'searchword': keyword,
-                    'start': page,
-                    'recruitPage': page,
-                    'recruitSort': 'relation',
-                    'recruitPageCount': 40
-                }
-                
-                # 프록시와 타임아웃 설정 추가
-                response = self.session.get(
-                    self.base_url, 
-                    params=params,
-                    timeout=self.timeout,
-                    # proxies=self.proxies,  # 프록시 필요시 주석 해제
-                    verify=True
-                )
-                
-                if response.status_code == 403:
-                    logging.error(f"접근이 차단됨 (키워드: {keyword}, 페이지: {page})")
-                    time.sleep(60)  # 차단 시 1분 대기
-                    continue
-                    
-                response.raise_for_status()
-                
-                # 응답 확인
-                if '채용정보가 없습니다' in response.text:
-                    logging.info(f"검색 결과 없음 (키워드: {keyword}, 페이지: {page})")
-                    return []
-                    
-                soup = BeautifulSoup(response.text, 'html.parser')
-                job_items = soup.select('.item_recruit')
-                
-                if not job_items:
-                    logging.warning(f"채용 항목을 찾을 수 없음 (키워드: {keyword}, 페이지: {page})")
-                    return []
-                
-                jobs = []
-                for job in job_items:
-                    job_data = self._parse_job_item(job)
-                    if job_data:
-                        jobs.append(job_data)
-                        
-                return jobs
-                
-            except requests.exceptions.Timeout:
-                logging.error(f"타임아웃 발생 (키워드: {keyword}, 페이지: {page}, 시도: {attempt+1}/{self.max_retries})")
-                time.sleep(self.retry_delay * (attempt + 1))
-            except requests.exceptions.RequestException as e:
-                logging.error(f"요청 오류 발생 (키워드: {keyword}, 페이지: {page}, 시도: {attempt+1}/{self.max_retries}): {str(e)}")
-                time.sleep(self.retry_delay * (attempt + 1))
-            except Exception as e:
-                logging.error(f"예상치 못한 오류 발생 (키워드: {keyword}, 페이지: {page}): {str(e)}")
-                return []
-        
-        return []  # 모든 재시도 실패 시
+    def _save_job(self, job):
+        try:
+            # 이미 존재하는 채용공고인지 확인
+            if Job.query.filter_by(link=job['link']).first():
+                return
+            
+            # 회사 정보 저장 (없는 경우에만)
+            company = Company.query.filter_by(name=job['company_name']).first()
+            if not company:
+                company = Company(name=job['company_name'])
+                db.session.add(company)
+                db.session.flush()
+            
+            # 채용공고 저장
+            job = Job(
+                company_id=company.id,
+                title=job['title'],
+                link=job['link'],
+                location=job['location'],
+                experience=job['experience'],
+                education=job['education'],
+                employment_type=job['employment_type'],
+                deadline=job['deadline'],
+                sector=job['sector'],
+                salary=job['salary'],
+                created_at=job['created_at']
+            )
+            db.session.add(job)
+            
+            # 주기적으로 커밋
+            if saved_count % 50 == 0:
+                db.session.commit()
+            
+        except IntegrityError:
+            logging.warning(f"Duplicate job found: {job['link']}")
+            db.session.rollback()
+        except Exception as e:
+            logging.error(f"Error saving job to database: {str(e)}")
+            db.session.rollback()
