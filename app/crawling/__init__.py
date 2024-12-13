@@ -1,22 +1,21 @@
 from flask import Blueprint
+from flask_apscheduler import APScheduler
 
 crawling_bp = Blueprint('crawling', __name__)
-
-from . import routes
+scheduler = APScheduler()
 
 def init_app(app):
     """크롤링 모듈 초기화"""
-    from flask_apscheduler import APScheduler
-    from .saramin import SaraminCrawler
+    from .routes import crawling_bp  # 여기로 이동
     
-    scheduler = APScheduler()
     scheduler.init_app(app)
     
     # 스케줄러 작업 정의
-    @scheduler.task('cron', id='daily_crawling', hour=2)  # 매일 새벽 2시 실행
+    @scheduler.task('cron', id='daily_crawling', hour=2)
     def scheduled_crawling():
         with app.app_context():
             try:
+                from .saramin import SaraminCrawler  # 여기서 import
                 crawler = SaraminCrawler()
                 jobs = crawler.crawl_jobs()
                 saved_count = crawler.save_to_db(jobs)
@@ -28,4 +27,6 @@ def init_app(app):
     app.register_blueprint(crawling_bp, url_prefix='/crawling')
     
     # 스케줄러 시작
-    scheduler.start() 
+    scheduler.start()
+
+from . import routes  # 마지막에 import
