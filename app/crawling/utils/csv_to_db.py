@@ -1,6 +1,6 @@
 from flask import current_app
 from app.database import db
-from app.models import Job
+from app.jobs.models import Job
 import csv
 import os
 import logging
