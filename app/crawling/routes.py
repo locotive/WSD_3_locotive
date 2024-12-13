@@ -20,7 +20,7 @@ def manual_crawling():
         crawler = SaraminCrawler()
         
         # 비동기 크롤러 실행
-        delay = random.uniform(10, 15)  # 5-8초에서 10-15초로 증가
+        delay = random.uniform(10, 15)
         saved_count = asyncio.run(crawler.crawl_jobs())
         
         logger.info(f"크롤링 완료: {saved_count}개의 채용공고 저장됨")
@@ -40,8 +40,21 @@ def manual_crawling():
 def get_crawling_status():
     """크롤링 상태 조회"""
     try:
+        db = get_db()
+        cursor = db.cursor(dictionary=True)
+        
+        # 최근 크롤링 상태 조회
+        cursor.execute("""
+            SELECT status, created_at 
+            FROM crawling_status 
+            ORDER BY created_at DESC 
+            LIMIT 1
+        """)
+        status = cursor.fetchone()
+        
         return jsonify({
-            "status": "running" if scheduler.running else "stopped"
+            "status": status['status'] if status else "unknown",
+            "last_update": status['created_at'].isoformat() if status else None
         })
     except Exception as e:
         current_app.logger.error(f"Failed to get crawling status: {str(e)}")
@@ -49,43 +62,38 @@ def get_crawling_status():
             "status": "error",
             "message": str(e)
         }), 500
+    finally:
+        cursor.close()
 
 @crawling_bp.route('/logs', methods=['GET'])
 def get_crawling_logs():
     """크롤링 로그 조회"""
     try:
-        # 쿼리 파라미터
         date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
         level = request.args.get('level', 'INFO')
         
-        # 로그 파일 경로
-        log_dir = os.path.join(current_app.root_path, 'logs')
-        log_file = os.path.join(log_dir, f'crawling_{date}.log')
+        db = get_db()
+        cursor = db.cursor(dictionary=True)
         
-        # 로그 디렉토리가 없으면 생성
-        if not os.path.exists(log_dir):
-            os.makedirs(log_dir)
-            
-        logs = []
-        if os.path.exists(log_file):
-            with open(log_file, 'r', encoding='utf-8') as f:
-                for line in f:
-                    try:
-                        log_entry = json.loads(line)
-                        # 레벨 필터링
-                        if level and log_entry.get('level') == level:
-                            logs.append({
-                                'timestamp': log_entry.get('timestamp'),
-                                'level': log_entry.get('level'),
-                                'message': log_entry.get('message'),
-                                'details': log_entry.get('details', {})
-                            })
-                    except json.JSONDecodeError:
-                        continue
+        # 로그 조회 쿼리
+        cursor.execute("""
+            SELECT timestamp, level, message, details
+            FROM crawling_logs
+            WHERE DATE(timestamp) = %s
+            AND level = %s
+            ORDER BY timestamp DESC
+        """, (date, level))
+        
+        logs = cursor.fetchall()
         
         return jsonify({
             "status": "success",
-            "data": logs
+            "data": [{
+                'timestamp': log['timestamp'].isoformat(),
+                'level': log['level'],
+                'message': log['message'],
+                'details': json.loads(log['details']) if log['details'] else {}
+            } for log in logs]
         })
     except Exception as e:
         current_app.logger.error(f"Failed to get crawling logs: {str(e)}")
@@ -93,3 +101,5 @@ def get_crawling_logs():
             "status": "error",
             "message": "크롤링 로그 조회 실패"
         }), 500
+    finally:
+        cursor.close()

@@ -69,7 +69,6 @@ def get_job_posting(posting_id):
 
 @jobs_bp.route('', methods=['POST'])
 @login_required
-@company_required
 def create_job_posting():
     try:
         data = request.get_json()
