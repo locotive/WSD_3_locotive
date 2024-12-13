@@ -21,6 +21,7 @@ from prometheus_client import make_wsgi_app
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from app.crawling.scheduler import scheduler
 from app.crawling.routes import crawling_bp
+from app.resumes.routes import resumes_bp
 import time
 import atexit
 import yaml
@@ -76,6 +77,7 @@ def create_app():
     app.register_blueprint(bookmarks_bp, url_prefix='/bookmarks')
     app.register_blueprint(companies_bp, url_prefix='/companies')
     app.register_blueprint(crawling_bp, url_prefix='/crawling')
+    app.register_blueprint(resumes_bp)
 
     # 먼저 swagger.json 생성
     swagger_data = {
@@ -143,7 +145,7 @@ def create_app():
     }
     
     # YAML 파일 병합
-    yaml_files = ['auth.yml', 'jobs.yml', 'applications.yml', 'bookmarks.yml']
+    yaml_files = ['auth.yml', 'jobs.yml', 'applications.yml', 'bookmarks.yml', 'resumes.yml']
     for yaml_file in yaml_files:
         file_path = os.path.join('app', 'docs', yaml_file)
         if os.path.exists(file_path):

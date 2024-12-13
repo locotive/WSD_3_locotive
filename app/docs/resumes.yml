@@ -1,0 +1,219 @@
+tags:
+  - name: Resumes
+    description: 이력서 관리 API
+
+paths:
+  /resumes:
+    post:
+      tags:
+        - Resumes
+      summary: 이력서 생성
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - content
+              properties:
+                title:
+                  type: string
+                  description: 이력서 제목
+                content:
+                  type: string
+                  description: 이력서 내용
+      responses:
+        '201':
+          description: 이력서 생성 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      resume_id:
+                        type: integer
+                        example: 1
+        '400':
+          description: 잘못된 요청
+        '401':
+          description: 인증 실패
+        '500':
+          description: 서버 에러
+
+    get:
+      tags:
+        - Resumes
+      summary: 이력서 목록 조회
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 이력서 목록 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        resume_id:
+                          type: integer
+                        title:
+                          type: string
+                        content:
+                          type: string
+                        is_primary:
+                          type: boolean
+                        created_at:
+                          type: string
+                          format: date-time
+        '401':
+          description: 인증 실패
+        '500':
+          description: 서버 에러
+
+  /resumes/{resume_id}:
+    get:
+      tags:
+        - Resumes
+      summary: 이력서 상세 조회
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: resume_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 이력서 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      resume_id:
+                        type: integer
+                      title:
+                        type: string
+                      content:
+                        type: string
+                      is_primary:
+                        type: boolean
+                      created_at:
+                        type: string
+                        format: date-time
+        '400':
+          description: 잘못된 요청
+        '401':
+          description: 인증 실패
+        '404':
+          description: 이력서를 찾을 수 없음
+        '500':
+          description: 서버 에러
+
+    put:
+      tags:
+        - Resumes
+      summary: 이력서 수정
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: resume_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  description: 이력서 제목
+                content:
+                  type: string
+                  description: 이력서 내용
+      responses:
+        '200':
+          description: 이력서 수정 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Resume updated successfully
+        '400':
+          description: 잘못된 요청
+        '401':
+          description: 인증 실패
+        '404':
+          description: 이력서를 찾을 수 없음
+        '500':
+          description: 서버 에러
+
+    delete:
+      tags:
+        - Resumes
+      summary: 이력서 삭제
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: resume_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 이력서 삭제 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Resume deleted successfully
+        '400':
+          description: 잘못된 요청 (기본 이력서는 삭제 불가)
+        '401':
+          description: 인증 실패
+        '404':
+          description: 이력서를 찾을 수 없음
+        '500':
+          description: 서버 에러
