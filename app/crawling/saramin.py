@@ -6,7 +6,7 @@ from datetime import datetime
 from .models import Job, Company
 from .params_code import SearchParams
 
-class JobCrawler:
+class SaraminCrawler:
     def __init__(self):
         self.search_params = SearchParams()
         self.base_url = "https://www.saramin.co.kr/zf_user/search/recruit"
