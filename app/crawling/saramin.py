@@ -5,27 +5,27 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from .models import Job, Company
 from .params_code import SearchParams
-from aiohttp import ClientTimeout, ClientSession
+from aiohttp import ClientTimeout, ClientSession, TCPConnector
 
 class SaraminCrawler:
     def __init__(self):
         self.search_params = SearchParams()
         self.base_url = "https://www.saramin.co.kr/zf_user/search/recruit"
-        self.timeout = ClientTimeout(total=30)
+        self.timeout = ClientTimeout(total=30, connect=10)
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7'
+            'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Connection': 'keep-alive'
         }
         
-        # 검색 설정
         self.tech_stack = [
             'python', 'java', 'javascript', 'react',
             'spring', 'django', 'vue.js', 'flutter'
         ]
         self.regions = ['서울', '경기', '인천']
         self.max_pages = 3
-        self.delay = 2
+        self.delay = 3  # 딜레이 증가
 
     async def fetch_page(self, session, params):
         """페이지 데이터 가져오기"""
@@ -35,12 +35,13 @@ class SaraminCrawler:
                 params=params,
                 headers=self.headers,
                 timeout=self.timeout,
-                ssl=False
+                ssl=False,
+                allow_redirects=True
             ) as response:
-                if response.status != 200:
-                    logging.error(f"HTTP {response.status}: {params}")
-                    return None
-                return await response.text()
+                if response.status == 200:
+                    return await response.text()
+                logging.error(f"HTTP {response.status}: {params}")
+                return None
         except Exception as e:
             logging.error(f"페이지 요청 실패: {str(e)}")
             return None
@@ -94,13 +95,14 @@ class SaraminCrawler:
 
     async def crawl_jobs(self):
         """채용 정보 크롤링 실행"""
-        async with ClientSession(connector=aiohttp.TCPConnector(ssl=False)) as session:
+        connector = TCPConnector(limit=5, force_close=True)
+        async with ClientSession(connector=connector) as session:
             all_jobs = []
-            semaphore = asyncio.Semaphore(3)  # 동시 요청 3개로 제한
-
+            
             for tech in self.tech_stack:
                 for region in self.regions:
                     tasks = []
+                    
                     for page in range(1, self.max_pages + 1):
                         params = {
                             'searchType': 'search',
@@ -108,22 +110,27 @@ class SaraminCrawler:
                             'recruitPage': page,
                             'loc_mcd': region,
                             'recruitSort': 'reg_dt',
-                            'recruitPageCount': 40
+                            'recruitPageCount': 40,
+                            'inner_com_type': '1',  # 대기업
+                            'company_cd': '0,1,2,3,4,5,6,7,8,9'  # 모든 기업형태
                         }
-                        async with semaphore:
-                            task = asyncio.create_task(self.fetch_and_process(session, params))
-                            tasks.append(task)
-
-                        await asyncio.sleep(self.delay)  # 요청 간격
-
+                        
+                        task = asyncio.create_task(self.fetch_and_process(
+                            session, params
+                        ))
+                        tasks.append(task)
+                        
+                        await asyncio.sleep(self.delay)
+                    
                     results = await asyncio.gather(*tasks)
                     for jobs in results:
                         if jobs:
                             all_jobs.extend(jobs)
-
+                            
+                    logging.info(f"{tech} - {region}: {len(all_jobs)}개 채용공고 수집")
+            
             await self.save_jobs(all_jobs)
             return len(all_jobs)
-
 
     async def fetch_and_process(self, session, params):
         """페이지 데이터 가져오기 및 처리"""
