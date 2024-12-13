@@ -13,7 +13,7 @@ class Company(db.Model):
     jobs = db.relationship('Job', backref='company', lazy=True)
 
 class Job(db.Model):
-    __tablename__ = 'jobs'
+    __tablename__ = 'job_postings'
     
     id = db.Column(db.Integer, primary_key=True)
     company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)

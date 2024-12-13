@@ -6,7 +6,7 @@ class CrawlingConfig:
     BASE_URL: str = "https://www.saramin.co.kr"
     SEARCH_URL: str = field(init=False)
     DETAIL_URL: str = field(init=False)
-    MAX_PAGES: int = 50
+    MAX_PAGES: int = 20
     MAX_RETRIES: int = 3
     RETRY_DELAY: int = 5
     HEADERS: Dict = field(default_factory=lambda: {
@@ -14,5 +14,5 @@ class CrawlingConfig:
     })
 
     def __post_init__(self):
-        self.SEARCH_URL = f"{self.BASE_URL}/zf_user/jobs/list/job-category"
+        self.SEARCH_URL = f"{self.BASE_URL}/zf_user/search/recruit"
         self.DETAIL_URL = f"{self.BASE_URL}/zf_user/jobs/relay/view"

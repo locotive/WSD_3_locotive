@@ -16,6 +16,7 @@ class SaraminCrawler:
         self.current_page = 1
         self.error_count = 0
         self.MAX_ERRORS = 3
+        self.MAX_PAGES = 20  
         
         self.logger = logging.getLogger('crawler')
         self.logger.setLevel(logging.DEBUG)
@@ -41,7 +42,7 @@ class SaraminCrawler:
             async with await self._create_session() as session:
                 self.session = session
                 
-                while self.current_page <= self.config.MAX_PAGES:
+                while self.current_page <= self.MAX_PAGES:
                     try:
                         params = {
                             'searchType': 'search',
@@ -83,6 +84,10 @@ class SaraminCrawler:
                             
                             self.current_page += 1
                             self.error_count = 0
+                            
+                            if self.current_page >= self.MAX_PAGES:
+                                self.logger.info(f"최대 페이지 수({self.MAX_PAGES}) 도달")
+                                break
                             
                     except aiohttp.ClientError as e:
                         self.logger.error(f"HTTP 요청 실패: {str(e)}")
@@ -136,10 +141,20 @@ class SaraminCrawler:
             return None
 
     async def save_jobs(self, jobs):
-        """채용 정보 저장"""
+        """채용 정보 저장 - 중복 체크 추가"""
         try:
             saved = 0
             for job_data in jobs:
+                # 중복 체크 - 같은 회사의 같은 제목 공고가 있는지 확인
+                existing_job = Job.query.join(Company).filter(
+                    Company.name == job_data['company_name'],
+                    Job.title == job_data['title']
+                ).first()
+                
+                if existing_job:
+                    self.logger.debug(f"중복 공고 건너뜀: {job_data['title']}")
+                    continue
+                
                 # 회사 정보 처리
                 company = Company.query.filter_by(name=job_data['company_name']).first()
                 if not company:
@@ -163,10 +178,10 @@ class SaraminCrawler:
                 saved += 1
             
             db.session.commit()
-            logging.info(f"저장 완료: {saved}개의 채용공고")
+            self.logger.info(f"저장 완료: {saved}개의 채용공고")
             return saved
             
         except Exception as e:
             db.session.rollback()
-            logging.error(f"저장 실패: {str(e)}")
+            self.logger.error(f"저장 실패: {str(e)}")
             return 0
