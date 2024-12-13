@@ -701,10 +701,11 @@ class JobPosting:
             if not cursor.fetchone():
                 return "Posting not found or unauthorized"
 
-            # 채용공고 상태를 'inactive'로 변경
+            # 채용공고 상태를 'inactive'로 변경하고 deleted_at 설정
             cursor.execute("""
                 UPDATE job_postings 
-                SET status = 'inactive' 
+                SET status = 'inactive',
+                    deleted_at = CURRENT_TIMESTAMP 
                 WHERE posting_id = %s AND company_id = %s
             """, (posting_id, company_id))
 
@@ -715,9 +716,8 @@ class JobPosting:
                 WHERE posting_id = %s AND status = 'pending'
             """, (posting_id,))
 
-            # 북마크 삭제
-            cursor.execute("DELETE FROM bookmarks WHERE posting_id = %s", (posting_id,))
-
+            # 북마크는 그대로 유지 (히스토리 목적)
+            
             db.commit()
             return None
 
