@@ -145,7 +145,14 @@ def create_app():
     }
     
     # YAML 파일 병합
-    yaml_files = ['auth.yml', 'jobs.yml', 'applications.yml', 'bookmarks.yml', 'resumes.yml']
+    yaml_files = [
+        'auth.yml', 
+        'jobs.yml', 
+        'applications.yml', 
+        'bookmarks.yml', 
+        'resumes.yml',
+        'crawling.yml'
+    ]
     for yaml_file in yaml_files:
         file_path = os.path.join('app', 'docs', yaml_file)
         if os.path.exists(file_path):

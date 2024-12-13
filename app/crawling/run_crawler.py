@@ -45,4 +45,4 @@ if __name__ == "__main__":
     if success:
         logger.info("수동 크롤링이 성공적으로 완료되었습니다.")
     else:
-        logger.error("수동 크롤링 중 오류가 발생했습니다.")
+        logger.error("수동 크롤링 중 오류가 발생했습니다.") 

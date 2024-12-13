@@ -1,0 +1,31 @@
+tags:
+  - name: Crawling
+    description: 채용공고 크롤링 API
+
+paths:
+  /crawling/manual:
+    post:
+      tags:
+        - Crawling
+      summary: 수동 크롤링 실행
+      description: 사람인 채용공고를 수동으로 크롤링합니다
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 크롤링 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 크롤링 완료
+                  jobs_count:
+                    type: integer
+                    example: 100
+        '401':
+          description: 인증 실패
+        '500':
+          description: 서버 에러 
