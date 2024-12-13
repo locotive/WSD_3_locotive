@@ -143,3 +143,33 @@ class SaraminCrawler:
             
         logging.info(f"Saved {saved_count} new jobs, found {duplicate_count} duplicates")
         return saved_count
+
+    def _crawl_page(self, keyword, page):
+        try:
+            params = {
+                'searchType': 'search',
+                'searchword': keyword,
+                'start': page
+            }
+            
+            response = self.session.get(self.base_url, params=params)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            job_items = soup.select('.item_recruit')
+            
+            jobs = []
+            for job in job_items:
+                job_data = self._parse_job_item(job)
+                if job_data:
+                    jobs.append(job_data)
+                    
+            time.sleep(self.page_delay)
+            return jobs
+            
+        except requests.RequestException as e:
+            logging.error(f"페이지 크롤링 중 오류 발생 (키워드: {keyword}, 페이지: {page}): {str(e)}")
+            return []
+        except Exception as e:
+            logging.error(f"예상치 못한 오류 발생 (키워드: {keyword}, 페이지: {page}): {str(e)}")
+            return []
