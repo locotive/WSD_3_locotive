@@ -88,32 +88,16 @@ def login():
         }), 500)
 
 @auth_bp.route('/profile', methods=['GET'])
-# @login_required
 def get_profile():
-    try:
-        # 테스트를 위한 임시 로직
-        logging.info("[Profile] Test access without @login_required")
-        logging.info(f"[Profile] Headers: {dict(request.headers)}")
-        
-        # 테스트용 더미 데이터 반환
-        test_user = {
-            "user_id": 1,
-            "email": "test@example.com",
-            "name": "Test User",
-            "status": "active"
+    # 가장 단순한 형태로 테스트
+    return jsonify({
+        "status": "success",
+        "message": "Test response",
+        "data": {
+            "id": 1,
+            "name": "Test User"
         }
-        
-        return jsonify({
-            "status": "success",
-            "data": test_user
-        }), 200
-
-    except Exception as e:
-        logging.error(f"[Profile] Exception: {str(e)}")
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+    }), 200
 
 @auth_bp.route('/profile', methods=['PUT'])
 @login_required
