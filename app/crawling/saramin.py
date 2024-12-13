@@ -207,8 +207,9 @@ class SaraminCrawler:
                 # 중복 체크
                 cursor.execute("""
                     SELECT j.* FROM job_postings j
-                    JOIN companies c ON j.company_id = c.id
+                    INNER JOIN companies c ON j.company_id = c.company_id
                     WHERE c.name = %s AND j.title = %s
+                    AND j.deleted_at IS NULL
                 """, (job_data['company_name'], job_data['title']))
                 
                 if cursor.fetchone():
@@ -216,32 +217,44 @@ class SaraminCrawler:
                     continue
                 
                 # 회사 정보 처리
-                cursor.execute("SELECT id FROM companies WHERE name = %s", (job_data['company_name'],))
+                cursor.execute("SELECT company_id FROM companies WHERE name = %s", 
+                             (job_data['company_name'],))
                 company = cursor.fetchone()
                 
                 if not company:
-                    cursor.execute("INSERT INTO companies (name) VALUES (%s)", (job_data['company_name'],))
+                    cursor.execute("""
+                        INSERT INTO companies (name, created_at) 
+                        VALUES (%s, CURRENT_TIMESTAMP)
+                    """, (job_data['company_name'],))
                     company_id = cursor.lastrowid
                 else:
-                    company_id = company['id']
+                    company_id = company['company_id']
                 
                 # 채용 공고 저장
                 cursor.execute("""
                     INSERT INTO job_postings (
-                        company_id, title, link, location, experience,
-                        education, employment_type, deadline, sector,
-                        created_at, updated_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                        company_id, 
+                        title,
+                        job_description,
+                        experience_level,
+                        education_level,
+                        employment_type,
+                        salary_info,
+                        deadline_date,
+                        status,
+                        created_at
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, 'active', CURRENT_TIMESTAMP
+                    )
                 """, (
                     company_id,
                     job_data['title'],
-                    job_data.get('link', ''),
-                    job_data.get('location', ''),
+                    job_data.get('description', ''),
                     job_data.get('experience', ''),
                     job_data.get('education', ''),
                     job_data.get('employment_type', ''),
-                    job_data.get('deadline', ''),
-                    job_data.get('sector', '')
+                    job_data.get('salary', ''),
+                    job_data.get('deadline', None)  # deadline이 없으면 NULL
                 ))
                 saved += 1
             
@@ -252,6 +265,6 @@ class SaraminCrawler:
         except Exception as e:
             db.rollback()
             self.logger.error(f"저장 실패: {str(e)}")
-            return 0
+            raise
         finally:
             cursor.close()
