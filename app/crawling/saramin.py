@@ -4,6 +4,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.service import Service
+from pyvirtualdisplay import Display
 import logging
 import time
 import random
@@ -15,27 +18,44 @@ from app.database import db
 class SaraminCrawler:
     def __init__(self):
         self.config = CrawlingConfig()
-        self.setup_driver()
+        self.display = None
+        self.driver = None
         
     def setup_driver(self):
-        """Chrome WebDriver 설정"""
-        chrome_options = Options()
-        chrome_options.add_argument('--headless')
-        chrome_options.add_argument('--no-sandbox')
-        chrome_options.add_argument('--disable-dev-shm-usage')
-        chrome_options.add_argument('--disable-gpu')
-        chrome_options.add_argument('--window-size=1920x1080')
-        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        chrome_options.add_experimental_option('useAutomationExtension', False)
-        
-        self.driver = webdriver.Chrome(options=chrome_options)
-        self.driver.execute_cdp_cmd('Network.setUserAgentOverride', {
-            "userAgent": self.config.HEADERS["User-Agent"]
-        })
-        self.driver.execute_script(
-            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
-        )
+        """Chrome WebDriver 및 가상 디스플레이 설정"""
+        try:
+            # 가상 디스플레이 시작
+            self.display = Display(visible=0, size=(1920, 1080))
+            self.display.start()
+            
+            # Chrome 옵션 설정
+            chrome_options = Options()
+            chrome_options.add_argument('--headless=new')  # 새로운 headless 모드
+            chrome_options.add_argument('--no-sandbox')
+            chrome_options.add_argument('--disable-dev-shm-usage')
+            chrome_options.add_argument('--disable-gpu')
+            chrome_options.add_argument('--window-size=1920x1080')
+            chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+            chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+            chrome_options.add_experimental_option('useAutomationExtension', False)
+            
+            # WebDriver 초기화
+            service = Service(ChromeDriverManager().install())
+            self.driver = webdriver.Chrome(service=service, options=chrome_options)
+            
+            # 자동화 감지 우회
+            self.driver.execute_cdp_cmd('Network.setUserAgentOverride', {
+                "userAgent": self.config.HEADERS["User-Agent"]
+            })
+            self.driver.execute_script(
+                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+            )
+            
+        except Exception as e:
+            logging.error(f"WebDriver 설정 실패: {str(e)}")
+            if self.display:
+                self.display.stop()
+            raise
 
     async def crawl_jobs(self):
         """채용 정보 크롤링 실행"""
