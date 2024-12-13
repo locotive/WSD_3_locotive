@@ -20,8 +20,8 @@ from app.monitoring.metrics import metrics
 from prometheus_client import make_wsgi_app
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from app.crawling.scheduler import scheduler
-from app.crawling.routes import crawling_bp
 from app.resumes.routes import resumes_bp
+from .crawling import init_app as init_crawling
 import time
 import atexit
 import yaml
@@ -76,7 +76,6 @@ def create_app():
     app.register_blueprint(applications_bp, url_prefix='/applications')
     app.register_blueprint(bookmarks_bp, url_prefix='/bookmarks')
     app.register_blueprint(companies_bp, url_prefix='/companies')
-    app.register_blueprint(crawling_bp, url_prefix='/crawling')
     app.register_blueprint(resumes_bp)
 
     # 먼저 swagger.json 생성
@@ -281,5 +280,8 @@ def create_app():
 
     # Teardown app context
     app.teardown_appcontext(close_db)
+
+    # 크롤링 모듈 초기화
+    init_crawling(app)
 
     return app 

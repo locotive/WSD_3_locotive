@@ -9,11 +9,13 @@ def manual_crawling():
     try:
         crawler = SaraminCrawler()
         jobs = crawler.crawl_jobs(min_jobs=100)
-        crawler.save_to_db(jobs)
+        saved_count = crawler.save_to_db(jobs)
+        
         return jsonify({
             "message": "크롤링 완료",
-            "jobs_count": len(jobs)
+            "total_jobs": len(jobs),
+            "saved_jobs": saved_count
         })
     except Exception as e:
         logging.error(f"수동 크롤링 실패: {str(e)}")
-        return jsonify({"message": f"크롤링 실패: {str(e)}"}), 500 
+        return jsonify({"message": f"크롤링 실패: {str(e)}"}), 500
