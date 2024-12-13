@@ -14,42 +14,44 @@ class SaraminCrawler:
         self.base_url = "https://www.saramin.co.kr/zf_user/search/recruit"
         self.timeout = ClientTimeout(total=60, connect=20)
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
             'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
-            'Cache-Control': 'max-age=0',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
             'Upgrade-Insecure-Requests': '1'
         }
         
-        self.tech_stack = [
-            'python', 'java', 'javascript'
-        ]
+        self.tech_stack = ['python']
         self.regions = ['서울']
-        self.max_pages = 2
-        self.delay = 5
+        self.max_pages = 1
+        self.delay = 3
 
     async def fetch_page(self, session, params):
         """페이지 데이터 가져오기"""
-        await asyncio.sleep(random.uniform(1, 3))
+        await asyncio.sleep(random.uniform(2, 4))
         
         try:
             async with session.get(
                 self.base_url,
                 params=params,
                 headers=self.headers,
-                timeout=self.timeout,
-                ssl=False,
-                allow_redirects=True,
-                proxy=None
+                timeout=30,
+                ssl=False
             ) as response:
                 if response.status == 200:
                     return await response.text()
-                logging.error(f"HTTP {response.status}: {params}")
+                logging.error(f"HTTP {response.status}")
                 return None
-        except asyncio.TimeoutError:
-            logging.error("요청 시간 초과")
-            return None
         except Exception as e:
             logging.error(f"페이지 요청 실패: {str(e)}")
             return None
