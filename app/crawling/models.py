@@ -16,7 +16,7 @@ class Job:
     @staticmethod
     def save(job):
         db = get_db()
-        cursor = db.cursor()
+        cursor = db.cursor(dictionary=True)
         try:
             cursor.execute("""
                 INSERT INTO job_postings (
@@ -45,7 +45,7 @@ class Company:
     @staticmethod
     def get_or_create(name):
         db = get_db()
-        cursor = db.cursor()
+        cursor = db.cursor(dictionary=True)
         try:
             cursor.execute("SELECT * FROM companies WHERE name = %s", (name,))
             result = cursor.fetchone()
