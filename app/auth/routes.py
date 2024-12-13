@@ -91,25 +91,40 @@ def login():
 @login_required
 def get_profile():
     try:
-        logging.info(f"[Profile] Request headers: {dict(request.headers)}")
-        logging.info(f"[Profile] Current user: {g.current_user if hasattr(g, 'current_user') else 'No user'}")
-        
         user_id = g.current_user['user_id']
-        user, error = User.get_profile(user_id)
+        user, error = User.get_user_profile(user_id)
         
         if error:
+            logging.error(f"[Profile] Error: {error}")
             return jsonify({
                 "status": "error",
                 "message": error
-            }), 400
+            }), 404
+            
+        if not user:
+            logging.error("[Profile] User data not found")
+            return jsonify({
+                "status": "error",
+                "message": "User not found"
+            }), 404
+            
+        logging.info(f"[Profile] Profile fetched successfully for user: {user_id}")
+        
+        # datetime 객체 처리
+        if user.get('created_at'):
+            user['created_at'] = user['created_at'].isoformat()
+        if user.get('last_login'):
+            user['last_login'] = user['last_login'].isoformat()
+        if user.get('birth_date'):
+            user['birth_date'] = user['birth_date'].isoformat()
             
         return jsonify({
             "status": "success",
             "data": user
-        })
-        
+        }), 200
+
     except Exception as e:
-        logging.error(f"[Profile] Error: {str(e)}")
+        logging.error(f"[Profile] Exception: {str(e)}")
         return jsonify({
             "status": "error",
             "message": str(e)

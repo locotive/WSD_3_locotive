@@ -191,13 +191,13 @@ def create_app():
     
     @app.before_request
     def before_request():
-        # 요청 시작 시간 저장
-        g.start_time = time.time()
-        # 요청 로깅
-        logger.log_request()
-        logging.info(f"[Request] Headers: {dict(request.headers)}")  # 헤더 로깅 추가
+        # GET 요청의 경우 Content-Type 헤더 제거
+        if request.method == 'GET' and 'Content-Type' in request.headers:
+            del request.headers['Content-Type']
         
-        # 메모리 메트릭 업데이트
+        g.start_time = time.time()
+        logger.log_request()
+        logging.info(f"[Request] Headers: {dict(request.headers)}")
         metrics.update_memory_metrics()
 
     # cache_timeouts 정의
