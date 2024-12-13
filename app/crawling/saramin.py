@@ -1,4 +1,4 @@
-import requests
+import aiohttp
 from bs4 import BeautifulSoup
 import logging
 import time
@@ -18,13 +18,15 @@ class SaraminCrawler:
         self.current_page = 1
         self.error_count = 0
         self.MAX_ERRORS = 3
+        self.MAX_RETRIES = 3
+        self.RETRY_DELAY = 60  # 재시도 간격 1분으로 증가
         
         # 로거 설정
         self.logger = logging.getLogger('crawler')
         self.logger.setLevel(logging.DEBUG)
     
-    def _create_session(self):
-        session = requests.Session()
+    async def _create_session(self):
+        session = aiohttp.ClientSession()
         
         # 재시도 전략 강화
         retry_strategy = Retry(
@@ -86,7 +88,8 @@ class SaraminCrawler:
             
             self.logger.debug(f"검색 파라미터: {params}")
             
-            while self.current_page <= self.config.MAX_PAGES and self.error_count < self.MAX_ERRORS:
+            retry_count = 0
+            while retry_count < self.MAX_RETRIES:
                 try:
                     params['recruitPage'] = self.current_page
                     params['page'] = self.current_page
@@ -133,6 +136,8 @@ class SaraminCrawler:
                     self.current_page += 1
                     self.error_count = 0
                     
+                    return saved_count
+                    
                 except requests.exceptions.Timeout as e:
                     self.logger.error(f"타임아웃 발생: {str(e)}")
                     self.logger.error(f"현재 설정: 연결 타임아웃 30초, 읽기 타임아웃 60초")
@@ -150,6 +155,11 @@ class SaraminCrawler:
                     self.logger.error(f"예상치 못한 오류 발생: {str(e)}", exc_info=True)
                     self.error_count += 1
                     await asyncio.sleep(30)
+                retry_count += 1
+                self.logger.error(f"크롤링 시도 {retry_count} 실패: {str(e)}")
+                if retry_count >= self.MAX_RETRIES:
+                    raise
+                await asyncio.sleep(self.RETRY_DELAY)
             
             self.logger.info(f"전체 수집된 채용공고 수: {len(all_jobs)}")
             

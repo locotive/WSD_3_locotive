@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify
 from .saramin import SaraminCrawler
 import asyncio
 import logging
+import random
 
 crawling_bp = Blueprint('crawling', __name__)
 
@@ -15,6 +16,7 @@ def manual_crawling():
         crawler = SaraminCrawler()
         
         # 비동기 크롤러 실행
+        delay = random.uniform(10, 15)  # 5-8초에서 10-15초로 증가
         saved_count = asyncio.run(crawler.crawl_jobs())
         
         logger.info(f"크롤링 완료: {saved_count}개의 채용공고 저장됨")

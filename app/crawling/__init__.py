@@ -36,13 +36,12 @@ def init_app(app):
             
             # 스케줄러 작업 정의
             @scheduler.task('cron', id='daily_crawling', hour=2)
-            def scheduled_crawling():
+            async def scheduled_crawling():
                 with app.app_context():
                     try:
                         from .saramin import SaraminCrawler
                         crawler = SaraminCrawler()
-                        jobs = crawler.crawl_jobs()
-                        saved_count = crawler.save_to_db(jobs)
+                        saved_count = await crawler.crawl_jobs()
                         app.logger.info(f"Scheduled crawling completed: {saved_count} jobs saved")
                     except Exception as e:
                         app.logger.error(f"Scheduled crawling failed: {str(e)}")
