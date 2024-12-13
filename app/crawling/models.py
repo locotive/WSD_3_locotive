@@ -1,47 +1,59 @@
 from datetime import datetime
-from app.database import db
+from app.database import get_db
 
-class Company(db.Model):
-    __tablename__ = 'companies'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Relationships
-    jobs = db.relationship('Job', backref='company', lazy=True)
+class Job:
+    def __init__(self, title, company_name, location=None, experience=None, 
+                 education=None, employment_type=None, deadline=None, tech_stacks=None):
+        self.title = title
+        self.company_name = company_name
+        self.location = location
+        self.experience = experience
+        self.education = education
+        self.employment_type = employment_type
+        self.deadline = deadline
+        self.tech_stacks = tech_stacks
 
-class Job(db.Model):
-    __tablename__ = 'job_postings'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
-    title = db.Column(db.String(200), nullable=False)
-    link = db.Column(db.String(500), nullable=False)
-    location = db.Column(db.String(100))
-    experience = db.Column(db.String(100))
-    education = db.Column(db.String(100))
-    employment_type = db.Column(db.String(100))
-    deadline = db.Column(db.String(100))
-    sector = db.Column(db.String(200))
-    salary = db.Column(db.String(100))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'company': self.company.name,
-            'title': self.title,
-            'link': self.link,
-            'location': self.location,
-            'experience': self.experience,
-            'education': self.education,
-            'employment_type': self.employment_type,
-            'deadline': self.deadline,
-            'sector': self.sector,
-            'salary': self.salary,
-            'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat()
-        }
+    @staticmethod
+    def save(job):
+        db = get_db()
+        cursor = db.cursor()
+        try:
+            cursor.execute("""
+                INSERT INTO job_postings (
+                    title, company_name, location, experience,
+                    education, employment_type, deadline, tech_stacks,
+                    created_at, updated_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+            """, (
+                job.title,
+                job.company_name,
+                job.location,
+                job.experience,
+                job.education,
+                job.employment_type,
+                job.deadline,
+                job.tech_stacks
+            ))
+            db.commit()
+        finally:
+            cursor.close()
+
+class Company:
+    def __init__(self, name):
+        self.name = name
+
+    @staticmethod
+    def get_or_create(name):
+        db = get_db()
+        cursor = db.cursor()
+        try:
+            cursor.execute("SELECT * FROM companies WHERE name = %s", (name,))
+            result = cursor.fetchone()
+            if result:
+                return Company(name)
+            
+            cursor.execute("INSERT INTO companies (name) VALUES (%s)", (name,))
+            db.commit()
+            return Company(name)
+        finally:
+            cursor.close()

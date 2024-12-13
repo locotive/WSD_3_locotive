@@ -7,7 +7,7 @@ import os
 import json
 from datetime import datetime
 from . import crawling_bp, scheduler
-from app.database import db
+from app.database import get_db
 from .models import Job
 
 @crawling_bp.route('/manual', methods=['POST'])

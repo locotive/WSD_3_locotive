@@ -6,7 +6,7 @@ import random
 from datetime import datetime
 from .models import Job, Company
 from .config import CrawlingConfig
-from app.database import db
+from app.database import get_db
 import asyncio
 import csv
 import os
@@ -200,44 +200,58 @@ class SaraminCrawler:
         """채용 정보 저장 - 중복 체크 추가"""
         try:
             saved = 0
+            db = get_db()
+            cursor = db.cursor(dictionary=True)
+            
             for job_data in jobs:
-                # 중복 체크 - 같은 회사의 같은 제목 공고가 있는지 확인
-                existing_job = Job.query.join(Company).filter(
-                    Company.name == job_data['company_name'],
-                    Job.title == job_data['title']
-                ).first()
+                # 중복 체크
+                cursor.execute("""
+                    SELECT j.* FROM job_postings j
+                    JOIN companies c ON j.company_id = c.id
+                    WHERE c.name = %s AND j.title = %s
+                """, (job_data['company_name'], job_data['title']))
                 
-                if existing_job:
+                if cursor.fetchone():
                     self.logger.debug(f"중복 공고 건너뜀: {job_data['title']}")
                     continue
                 
                 # 회사 정보 처리
-                company = Company.query.filter_by(name=job_data['company_name']).first()
+                cursor.execute("SELECT id FROM companies WHERE name = %s", (job_data['company_name'],))
+                company = cursor.fetchone()
+                
                 if not company:
-                    company = Company(name=job_data['company_name'])
-                    db.session.add(company)
-                    db.session.commit()
+                    cursor.execute("INSERT INTO companies (name) VALUES (%s)", (job_data['company_name'],))
+                    company_id = cursor.lastrowid
+                else:
+                    company_id = company['id']
                 
                 # 채용 공고 저장
-                job = Job(
-                    company_id=company.id,
-                    title=job_data['title'],
-                    link=job_data['link'],
-                    location=job_data['location'],
-                    experience=job_data['experience'],
-                    education=job_data['education'],
-                    employment_type=job_data['employment_type'],
-                    deadline=job_data['deadline'],
-                    sector=job_data['sector']
-                )
-                db.session.add(job)
+                cursor.execute("""
+                    INSERT INTO job_postings (
+                        company_id, title, link, location, experience,
+                        education, employment_type, deadline, sector,
+                        created_at, updated_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                """, (
+                    company_id,
+                    job_data['title'],
+                    job_data.get('link', ''),
+                    job_data.get('location', ''),
+                    job_data.get('experience', ''),
+                    job_data.get('education', ''),
+                    job_data.get('employment_type', ''),
+                    job_data.get('deadline', ''),
+                    job_data.get('sector', '')
+                ))
                 saved += 1
             
-            db.session.commit()
+            db.commit()
             self.logger.info(f"저장 완료: {saved}개의 채용공고")
             return saved
             
         except Exception as e:
-            db.session.rollback()
+            db.rollback()
             self.logger.error(f"저장 실패: {str(e)}")
             return 0
+        finally:
+            cursor.close()
