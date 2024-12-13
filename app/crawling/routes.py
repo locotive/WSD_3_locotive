@@ -1,6 +1,5 @@
 from flask import Blueprint, jsonify
-from app.common.middleware import login_required
-from app.crawling.saramin import SaraminCrawler
+from .saramin import SaraminCrawler
 import logging
 
 crawling_bp = Blueprint('crawling', __name__)
