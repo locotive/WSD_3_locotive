@@ -4,8 +4,7 @@ import logging
 from datetime import datetime
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from app.database import db
-from app.models import Job, Company
+from .models import Job, Company
 
 class SaraminCrawler:
     def __init__(self):
