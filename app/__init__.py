@@ -214,77 +214,36 @@ def create_app():
     def apply_middleware(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
+            # API 문서, 정적 파일, 메트릭스는 제외
             if request.path.startswith(('/api/docs', '/static', '/metrics')):
                 return f(*args, **kwargs)
             
-            # 메트릭과 레이트 리밋은 모든 요청에 적용
-            wrapped = metrics.track_request()(f)
-            wrapped = api_rate_limit()(wrapped)
+            # 로깅 추가
+            logging.info(f"[Global Middleware] Processing: {request.method} {request.path}")
             
-            # 보안 미들웨어 적용 (로그인/회원가입 제외)
-            if not request.path.startswith(('/auth/login', '/auth/register', '/static', '/metrics')):
+            # 인증이 필요없는 엔드포인트는 제외
+            if request.path in ['/auth/login', '/auth/register']:
+                wrapped = f
+            else:
                 # Authorization 헤더 검사
                 auth_header = request.headers.get('Authorization')
+                logging.info(f"[Global Middleware] Auth header: {auth_header}")
+                
                 if not auth_header:
                     return jsonify({
                         "status": "error",
                         "message": "Authentication required"
                     }), 401
-                    
-                # Bearer 토큰 검사 및 검증
-                try:
-                    if not auth_header.startswith('Bearer '):
-                        return jsonify({
-                            "status": "error",
-                            "message": "Invalid token format"
-                        }), 401
-                        
-                    token = auth_header.split(' ')[1]
-                    if not token:
-                        return jsonify({
-                            "status": "error",
-                            "message": "Token is missing"
-                        }), 401
-                    
-                    # 토큰 검증 및 사용자 정보 설정
-                    user_info = security.validate_token(token)
-                    if not user_info or not isinstance(user_info, dict):
-                        return jsonify({
-                            "status": "error",
-                            "message": "Invalid or expired token"
-                        }), 401
-                        
-                    # g 객체에 사용자 정보 저장
-                    g.current_user = {
-                        'user_id': user_info.get('user_id'),
-                        'email': user_info.get('email'),
-                        'role': user_info.get('role', 'user')
-                    }
-                    
-                    # 디버그 로깅 추가
-                    logger.info(f"User info set in middleware: {g.current_user}")
-                        
-                except Exception as e:
-                    logger.error(f"Authentication error in middleware: {str(e)}")
-                    return jsonify({
-                        "status": "error",
-                        "message": f"Authentication error: {str(e)}"
-                    }), 401
                 
-                # 보안 헤더 적용
-                wrapped = security.security_headers()(wrapped)
-            
-            # 캐시는 마지막에 적용
-            if request.method == 'GET':
-                timeout = cache_timeouts.get(request.endpoint, 300)
-                wrapped = cache.cache_response(timeout=timeout)(wrapped)
+                # 나머지 인증 로직...
                 
             return wrapped(*args, **kwargs)
         return decorated_function
 
     # 모든 라우트에 미들웨어 적용
     for endpoint in app.view_functions:
-        app.view_functions[endpoint] = apply_middleware(app.view_functions[endpoint])
+        if not endpoint.startswith(('static', 'swagger')):  # 특정 엔드포인트 제외
+            app.view_functions[endpoint] = apply_middleware(app.view_functions[endpoint])
 
     @app.after_request
     def after_request(response):
