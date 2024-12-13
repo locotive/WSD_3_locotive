@@ -56,9 +56,8 @@ def create_app():
     # 로깅 설정
     setup_logger()
     
-    # 스케줄러 시작
-    @app.before_first_request
-    def start_scheduler():
+    # 스케줄러 초기화 (before_first_request 대신)
+    with app.app_context():
         scheduler.start()
 
     # 애플리케이션 종료 시 스케줄러 정지
