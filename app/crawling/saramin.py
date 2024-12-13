@@ -8,6 +8,8 @@ from .models import Job, Company
 from .config import CrawlingConfig
 from app.database import db
 import asyncio
+import csv
+import os
 from flask import current_app
 
 class SaraminCrawler:
@@ -17,7 +19,7 @@ class SaraminCrawler:
         self.current_page = 1
         self.error_count = 0
         self.MAX_ERRORS = 3
-        self.MAX_PAGES = 20  
+        self.MAX_PAGES = 5  
         
         self.logger = logging.getLogger('crawler')
         self.logger.setLevel(logging.DEBUG)
@@ -99,6 +101,49 @@ class SaraminCrawler:
                         await asyncio.sleep(30)
                         
             if all_jobs:
+                # 크롤링된 데이터 구조 로깅
+                current_app.logger.info(f"Sample job data structure: {all_jobs[0]}")
+                
+                # CSV 파일로 저장
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                csv_dir = os.path.join(current_app.root_path, 'data', 'crawling')
+                os.makedirs(csv_dir, exist_ok=True)
+                
+                csv_file = os.path.join(csv_dir, f'jobs_{timestamp}.csv')
+                
+                # 고정된 필드명 사용
+                fieldnames = [
+                    'id', 'company_name', 'title', 
+                    'description', 'experience', 'education',
+                    'employment_type', 'salary', 'location',
+                    'deadline', 'tech_stack', 'created_at'
+                ]
+                
+                with open(csv_file, 'w', newline='', encoding='utf-8-sig') as f:
+                    writer = csv.DictWriter(f, fieldnames=fieldnames)
+                    writer.writeheader()
+                    
+                    for job in all_jobs:
+                        # 데이터 매핑
+                        row = {
+                            'id': job.get('id', ''),
+                            'company_name': job.get('company_name', ''),
+                            'title': job.get('title', ''),
+                            'description': job.get('description', ''),
+                            'experience': job.get('experience', ''),
+                            'education': job.get('education', ''),
+                            'employment_type': job.get('employment_type', ''),
+                            'salary': job.get('salary', ''),
+                            'location': job.get('location', ''),
+                            'deadline': job.get('deadline', ''),
+                            'tech_stack': job.get('tech_stack', ''),
+                            'created_at': job.get('created_at', '')
+                        }
+                        writer.writerow(row)
+                
+                current_app.logger.info(f"CSV file created: {csv_file}")
+                
+                # DB 저장도 계속 유지
                 return await self.save_jobs(all_jobs)
             return 0
             

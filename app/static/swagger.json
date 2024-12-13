@@ -1580,6 +1580,11 @@
         ],
         "summary": "수동 크롤링 실행",
         "description": "사람인 채용공고를 수동으로 크롤링합니다",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "크롤링 성공",
@@ -1588,18 +1593,43 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
+                    "status": {
                       "type": "string",
-                      "example": "크롤링 완료"
+                      "example": "success"
                     },
-                    "jobs_count": {
-                      "type": "integer",
-                      "example": 100
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "jobs_count": {
+                          "type": "integer",
+                          "example": 100
+                        },
+                        "new_jobs": {
+                          "type": "integer",
+                          "example": 30
+                        },
+                        "updated_jobs": {
+                          "type": "integer",
+                          "example": 20
+                        },
+                        "failed_jobs": {
+                          "type": "integer",
+                          "example": 0
+                        },
+                        "execution_time": {
+                          "type": "number",
+                          "format": "float",
+                          "example": 45.2
+                        }
+                      }
                     }
                   }
                 }
               }
             }
+          },
+          "401": {
+            "description": "인증 실패"
           },
           "500": {
             "description": "서버 에러"
@@ -1609,9 +1639,16 @@
     },
     "/crawling/status": {
       "get": {
-        "tags": ["Crawling"],
+        "tags": [
+          "Crawling"
+        ],
         "summary": "크롤링 상태 조회",
         "description": "현재 크롤링 작업의 상태를 조회합니다",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "상태 조회 성공",
@@ -1622,8 +1659,42 @@
                   "properties": {
                     "status": {
                       "type": "string",
-                      "enum": ["running", "stopped"],
-                      "example": "running"
+                      "example": "success"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "is_running": {
+                          "type": "boolean",
+                          "example": false
+                        },
+                        "last_run": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "next_scheduled": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "total_jobs": {
+                          "type": "integer",
+                          "example": 5000
+                        },
+                        "last_run_stats": {
+                          "type": "object",
+                          "properties": {
+                            "success_count": {
+                              "type": "integer"
+                            },
+                            "error_count": {
+                              "type": "integer"
+                            },
+                            "execution_time": {
+                              "type": "number"
+                            }
+                          }
+                        }
+                      }
                     }
                   }
                 }
@@ -1635,9 +1706,16 @@
     },
     "/crawling/logs": {
       "get": {
-        "tags": ["Crawling"],
+        "tags": [
+          "Crawling"
+        ],
         "summary": "크롤링 로그 조회",
         "description": "크롤링 작업의 로그를 조회합니다",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "in": "query",
@@ -1653,7 +1731,11 @@
             "name": "level",
             "schema": {
               "type": "string",
-              "enum": ["INFO", "ERROR", "WARNING"]
+              "enum": [
+                "INFO",
+                "ERROR",
+                "WARNING"
+              ]
             },
             "description": "로그 레벨"
           }
@@ -1888,6 +1970,27 @@
             "format": "date"
           }
         }
+      },
+      "CrawlingStats": {
+        "type": "object",
+        "properties": {
+          "total_jobs": {
+            "type": "integer"
+          },
+          "new_jobs": {
+            "type": "integer"
+          },
+          "updated_jobs": {
+            "type": "integer"
+          },
+          "failed_jobs": {
+            "type": "integer"
+          },
+          "execution_time": {
+            "type": "number",
+            "format": "float"
+          }
+        }
       }
     },
     "responses": {
@@ -1926,7 +2029,7 @@
     },
     {
       "name": "Crawling",
-      "description": "채용공고 크롤링 API"
+      "description": "채용공고 크롤링 관련 API"
     }
   ]
 }
