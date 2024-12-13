@@ -9,40 +9,52 @@ from .config import CrawlingConfig
 from app.database import db
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+import asyncio
 
 class SaraminCrawler:
     def __init__(self):
         self.config = CrawlingConfig()
         self.session = self._create_session()
+        self.current_page = 1
+        self.error_count = 0
+        self.MAX_ERRORS = 3
     
     def _create_session(self):
-        """요청 세션 생성 및 설정"""
         session = requests.Session()
         
-        # 재시도 전략 설정
+        # 재시도 전략 강화
         retry_strategy = Retry(
-            total=3,  # 최대 재시도 횟수
-            backoff_factor=0.5,  # 재시도 간격
-            status_forcelist=[500, 502, 503, 504]  # 재시도할 HTTP 상태 코드
+            total=5,
+            backoff_factor=2,  # 지수 백오프 증가
+            status_forcelist=[500, 502, 503, 504, 429, 403],
+            allowed_methods=["GET", "HEAD", "OPTIONS"]
         )
         
-        # 세션 어댑터 설정
         adapter = HTTPAdapter(
             max_retries=retry_strategy,
-            pool_connections=10,
-            pool_maxsize=10
+            pool_connections=5,  # 연결 풀 크기 조정
+            pool_maxsize=5
         )
         
         session.mount("http://", adapter)
         session.mount("https://", adapter)
         
-        # 타임아웃 및 헤더 설정
-        session.headers.update(self.config.HEADERS)
+        # 타더 다양화
         session.headers.update({
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'ko-KR,ko;q=0.8,en-US;q=0.5,en;q=0.3',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
+            'Cache-Control': 'max-age=0',
+            'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Upgrade-Insecure-Requests': '1'
         })
         
         return session
@@ -53,21 +65,32 @@ class SaraminCrawler:
             all_jobs = []
             search_url = f"{self.config.BASE_URL}/zf_user/search/recruit"
             
-            # Python 개발자 채용공고 검색
+            # 검색 파라미터 다양화
             params = {
+                'searchType': 'search',
                 'searchword': 'python',
-                'loc_mcd': '101000',  # 서울
-                'job_type': '1',      # 정규직
-                'exp_cd': '1',        
+                'loc_mcd': '101000',
+                'job_type': '1',
+                'exp_cd': '1',
+                'panel_type': 'auto',
+                'search_optional_item': 'y',
+                'search_done': 'y',
+                'panel_count': 'y'
             }
             
-            for page in range(1, self.config.MAX_PAGES + 1):
+            while self.current_page <= self.config.MAX_PAGES and self.error_count < self.MAX_ERRORS:
                 try:
-                    params['recruitPage'] = page
+                    params['recruitPage'] = self.current_page
+                    params['page'] = self.current_page
+                    
+                    # 랜덤 지연 시간 추가
+                    delay = random.uniform(2, 5)
+                    await asyncio.sleep(delay)
+                    
                     response = self.session.get(
-                        search_url, 
+                        search_url,
                         params=params,
-                        timeout=(5, 15)  # (연결 타임아웃, 읽기 타임아웃)
+                        timeout=(15, 30)  # (연결 타임아웃, 읽기 타임아웃)
                     )
                     response.raise_for_status()
                     
@@ -75,25 +98,32 @@ class SaraminCrawler:
                     job_elements = soup.select('.item_recruit')
                     
                     if not job_elements:
-                        break
-                        
+                        if self.error_count < self.MAX_ERRORS:
+                            self.error_count += 1
+                            await asyncio.sleep(10)
+                            continue
+                        else:
+                            break
+                    
                     for element in job_elements:
                         if job_info := self.extract_job_info(element):
                             all_jobs.append(job_info)
                     
-                    time.sleep(random.uniform(2, 3))  # 딜레이 증가
+                    self.current_page += 1
+                    self.error_count = 0  # 성공시 에러 카운트 리셋
                     
-                except requests.exceptions.RequestException as e:
-                    logging.error(f"페이지 {page} 요청 실패: {str(e)}")
-                    time.sleep(5)  # 오류 발생시 더 긴 대기
-                    continue
                 except Exception as e:
-                    logging.error(f"페이지 {page} 처리 중 오류: {str(e)}")
-                    continue
+                    logging.error(f"페이지 {self.current_page} 처리 중 오류: {str(e)}")
+                    self.error_count += 1
+                    if self.error_count >= self.MAX_ERRORS:
+                        break
+                    await asyncio.sleep(15)  # 오류 발생시 더 긴 대기
             
             # 수집된 데이터 저장
-            saved_count = await self.save_jobs(all_jobs)
-            return saved_count
+            if all_jobs:
+                saved_count = await self.save_jobs(all_jobs)
+                return saved_count
+            return 0
             
         except Exception as e:
             logging.error(f"크롤링 실패: {str(e)}")
