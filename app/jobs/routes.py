@@ -86,29 +86,22 @@ def create_job_posting():
         cursor = db.cursor()
         
         try:
-            # 현재 로그인한 사용자의 company_id 가져오기
+            # 현사 생성
             cursor.execute("""
-                SELECT company_id FROM users 
-                WHERE id = %s
+                INSERT INTO companies (name) 
+                VALUES (CONCAT('Company_', %s))
             """, (g.user_id,))
             
-            result = cursor.fetchone()
-            if not result or not result[0]:
-                return make_response(jsonify({
-                    "status": "error",
-                    "message": "User is not associated with any company"
-                }), 403)
-            
-            company_id = result[0]
+            company_id = cursor.lastrowid
             
             # 채용공고 생성
             cursor.execute("""
                 INSERT INTO job_postings (
                     company_id, title, job_description, experience_level,
                     education_level, employment_type, salary_info,
-                    location_id, deadline_date, status, created_at
+                    location_id, deadline_date, status
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, 'active', CURRENT_TIMESTAMP
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, 'active'
                 )
             """, (
                 company_id,
