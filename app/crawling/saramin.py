@@ -8,29 +8,36 @@ from .models import Job, Company
 
 class SaraminCrawler:
     def __init__(self):
+        self.base_url = "https://www.saramin.co.kr/zf_user/search/recruit"
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'ko-KR,ko;q=0.8,en-US;q=0.5,en;q=0.3',
         })
-        self.timeout = 10
+        
+        # requests 설정
+        self.timeout = 30
+        self.max_retries = 3
         self.retry_delay = 5
-        self.max_workers = 3
-        
-    def _fetch_page(self, keyword, page):
-        url = f"https://www.saramin.co.kr/zf_user/search/recruit?searchType=search&searchword={keyword}&recruitPage={page}"
-        retries = 3
-        
-        for attempt in range(retries):
-            try:
-                response = self.session.get(url, timeout=self.timeout)
-                response.raise_for_status()
-                return response.text
-            except Exception as e:
-                logging.warning(f"Request failed (attempt {attempt + 1}): {str(e)}")
-                if attempt < retries - 1:
-                    time.sleep(self.retry_delay)
-                else:
-                    return None
+
+    def fetch_page(self, url, attempt=1):
+        try:
+            response = self.session.get(
+                url, 
+                timeout=self.timeout,
+                verify=False  # SSL 인증서 검증 비활성화
+            )
+            response.raise_for_status()
+            return response.text
+        except requests.RequestException as e:
+            if attempt < self.max_retries:
+                logging.warning(f"Request failed (attempt {attempt}): {str(e)}")
+                time.sleep(self.retry_delay)
+                return self.fetch_page(url, attempt + 1)
+            else:
+                logging.error(f"Max retries exceeded for URL: {url}")
+                return None
 
     def _parse_job(self, job_item):
         try:
