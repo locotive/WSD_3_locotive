@@ -4,7 +4,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 from pyvirtualdisplay import Display
 import logging
@@ -15,6 +14,8 @@ from .models import Job, Company
 from .config import CrawlingConfig
 from app.database import db
 import shutil
+import os
+import tempfile
 
 class SaraminCrawler:
     def __init__(self):
@@ -25,6 +26,10 @@ class SaraminCrawler:
     def setup_driver(self):
         """Chrome WebDriver 및 가상 디스플레이 설정"""
         try:
+            # 임시 디렉토리 생성
+            temp_dir = tempfile.mkdtemp()
+            os.environ['XDG_RUNTIME_DIR'] = temp_dir
+            
             # 가상 디스플레이 시작
             self.display = Display(visible=0, size=(1920, 1080))
             self.display.start()
@@ -35,6 +40,7 @@ class SaraminCrawler:
             chrome_options.add_argument('--no-sandbox')
             chrome_options.add_argument('--disable-dev-shm-usage')
             chrome_options.add_argument('--disable-gpu')
+            chrome_options.add_argument(f'--user-data-dir={temp_dir}/chrome')
             chrome_options.add_argument('--window-size=1920x1080')
             chrome_options.add_argument('--disable-blink-features=AutomationControlled')
             
@@ -51,12 +57,8 @@ class SaraminCrawler:
             chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
             chrome_options.add_experimental_option('useAutomationExtension', False)
             
-            # ChromeDriver 직접 설정
-            chromedriver_path = shutil.which('chromedriver')
-            if not chromedriver_path:
-                raise Exception("ChromeDriver를 찾을 수 없습니다.")
-            
-            service = Service(executable_path=chromedriver_path)
+            # ChromeDriver 설정
+            service = Service('/usr/bin/chromedriver')
             
             capabilities = webdriver.DesiredCapabilities.CHROME.copy()
             capabilities['pageLoadStrategy'] = 'eager'
@@ -122,7 +124,7 @@ class SaraminCrawler:
                         if job_info := self.extract_job_info(element):
                             all_jobs.append(job_info)
                     
-                    # 다음 페이지로 이동
+                    # 다음 페이지로 ��동
                     next_page = f"{search_url}?{query_string}&recruitPage={page + 1}"
                     self.driver.get(next_page)
                     time.sleep(random.uniform(2, 4))  # 랜덤 딜레이
@@ -132,7 +134,7 @@ class SaraminCrawler:
                     break
                     
                 except Exception as e:
-                    logging.error(f"페이지 {page} ���리 중 오류: {str(e)}")
+                    logging.error(f"페이지 {page} 리 중 오류: {str(e)}")
                     continue
             
             # 수집된 데이터 저장
