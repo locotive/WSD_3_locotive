@@ -287,10 +287,6 @@ components:
           type: integer
         company_id:
           type: integer
-        company_name:
-          type: string
-        company_description:
-          type: string
         title:
           type: string
         job_description:
@@ -305,22 +301,41 @@ components:
           type: string
         location_id:
           type: integer
-        city:
-          type: string
-        district:
-          type: string
         deadline_date:
           type: string
           format: date
         view_count:
           type: integer
-        categories:
+          default: 0
+        status:
           type: string
-        tech_stacks:
-          type: string
+          enum: [active, closed, deleted]
+          default: active
         created_at:
           type: string
           format: date-time
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+        categories:
+          type: array
+          items:
+            type: object
+            properties:
+              category_id:
+                type: integer
+              name:
+                type: string
+        tech_stacks:
+          type: array
+          items:
+            type: object
+            properties:
+              stack_id:
+                type: integer
+              name:
+                type: string
 
     JobPostingInput:
       type: object

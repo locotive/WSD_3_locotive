@@ -223,6 +223,35 @@ components:
           type: string
           example: Error message here
 
+    User:
+      type: object
+      properties:
+        user_id:
+          type: integer
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        birth_date:
+          type: string
+          format: date
+          nullable: true
+        status:
+          type: string
+          enum: [active, inactive]
+          default: active
+        created_at:
+          type: string
+          format: date-time
+        last_login:
+          type: string
+          format: date-time
+          nullable: true
+
   securitySchemes:
     BearerAuth:
       type: http

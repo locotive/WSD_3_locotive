@@ -188,3 +188,29 @@ paths:
           description: 인증 실패
         '500':
           description: 서버 에러
+
+components:
+  schemas:
+    Bookmark:
+      type: object
+      properties:
+        bookmark_id:
+          type: integer
+        user_id:
+          type: integer
+        posting_id:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        job_title:
+          type: string
+        company_name:
+          type: string
+        deadline:
+          type: string
+          format: date
+        salary:
+          type: string
+        company_location:
+          type: string

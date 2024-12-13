@@ -43,6 +43,15 @@ paths:
                     properties:
                       application_id:
                         type: integer
+                      posting_title:
+                        type: string
+                      company_name:
+                        type: string
+                      resume_title:
+                        type: string
+                      deadline_date:
+                        type: string
+                        format: date
         '400':
           description: 잘못된 요청
           content:
@@ -87,7 +96,29 @@ paths:
                       applications:
                         type: array
                         items:
-                          $ref: '#/components/schemas/Application'
+                          type: object
+                          properties:
+                            application_id:
+                              type: integer
+                            posting_id:
+                              type: integer
+                            resume_id:
+                              type: integer
+                            status:
+                              type: string
+                              enum: [pending, accepted, rejected, cancelled]
+                            applied_at:
+                              type: string
+                              format: date-time
+                            posting_title:
+                              type: string
+                            company_name:
+                              type: string
+                            resume_title:
+                              type: string
+                            deadline_date:
+                              type: string
+                              format: date
                       total:
                         type: integer
                       page:

@@ -123,9 +123,12 @@ components:
         city:
           type: string
           example: "서울"
+        code:
+          type: string
+          nullable: true
         district:
           type: string
-          example: "강남구"
+          nullable: true
         created_at:
           type: string
           format: date-time
