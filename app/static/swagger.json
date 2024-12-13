@@ -1302,7 +1302,7 @@
             "description": "잘못된 요청"
           },
           "401": {
-            "description": "인증 실패"
+            "description": "인증 ���패"
           },
           "500": {
             "description": "서버 에러"
@@ -1798,12 +1798,6 @@
           "company_id": {
             "type": "integer"
           },
-          "company_name": {
-            "type": "string"
-          },
-          "company_description": {
-            "type": "string"
-          },
           "title": {
             "type": "string"
           },
@@ -1825,28 +1819,26 @@
           "location_id": {
             "type": "integer"
           },
-          "city": {
-            "type": "string"
-          },
-          "district": {
-            "type": "string"
-          },
           "deadline_date": {
             "type": "string",
             "format": "date"
           },
           "view_count": {
-            "type": "integer"
+            "type": "integer",
+            "default": 0
           },
-          "categories": {
-            "type": "string"
-          },
-          "tech_stacks": {
-            "type": "string"
+          "status": {
+            "type": "string",
+            "default": "active"
           },
           "created_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "deleted_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           }
         }
       },
@@ -1967,50 +1959,167 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "pending",
-              "accepted",
-              "rejected",
-              "cancelled"
-            ]
+            "default": "pending"
           },
           "applied_at": {
             "type": "string",
             "format": "date-time"
-          },
-          "posting_title": {
-            "type": "string"
-          },
-          "company_name": {
-            "type": "string"
-          },
-          "resume_title": {
-            "type": "string"
-          },
-          "deadline_date": {
-            "type": "string",
-            "format": "date"
           }
         }
       },
-      "CrawlingStats": {
+      "Bookmark": {
         "type": "object",
         "properties": {
-          "total_jobs": {
+          "bookmark_id": {
             "type": "integer"
           },
-          "new_jobs": {
+          "user_id": {
             "type": "integer"
           },
-          "updated_jobs": {
+          "posting_id": {
             "type": "integer"
           },
-          "failed_jobs": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Resume": {
+        "type": "object",
+        "properties": {
+          "resume_id": {
             "type": "integer"
           },
-          "execution_time": {
-            "type": "number",
-            "format": "float"
+          "user_id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string",
+            "format": "binary"
+          },
+          "is_primary": {
+            "type": "boolean",
+            "default": false
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "integer"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password_hash": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "birth_date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "default": "active"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_login": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "Company": {
+        "type": "object",
+        "properties": {
+          "company_id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Location": {
+        "type": "object",
+        "properties": {
+          "location_id": {
+            "type": "integer"
+          },
+          "city": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "nullable": true
+          },
+          "district": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "TechStack": {
+        "type": "object",
+        "properties": {
+          "stack_id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "JobCategory": {
+        "type": "object",
+        "properties": {
+          "category_id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       }

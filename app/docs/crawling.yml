@@ -35,12 +35,6 @@ paths:
                       failed_jobs:
                         type: integer
                         example: 0
-                      execution_time:
-                        type: number
-                        format: float
-                        example: 45.2
-        '401':
-          description: 인증 실패
         '500':
           description: 서버 에러
 
@@ -70,21 +64,9 @@ paths:
                       last_run:
                         type: string
                         format: date-time
-                      next_scheduled:
-                        type: string
-                        format: date-time
                       total_jobs:
                         type: integer
                         example: 5000
-                      last_run_stats:
-                        type: object
-                        properties:
-                          success_count:
-                            type: integer
-                          error_count:
-                            type: integer
-                          execution_time:
-                            type: number
 
   /crawling/logs:
     get:
@@ -128,8 +110,6 @@ paths:
                           type: string
                         message:
                           type: string
-                        details:
-                          type: object
 
 components:
   schemas:
