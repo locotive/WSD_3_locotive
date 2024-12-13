@@ -1,189 +1,169 @@
 import aiohttp
 import asyncio
 import logging
-import random
-import time
 from bs4 import BeautifulSoup
-from aiohttp import ClientTimeout
-from aiohttp_retry import RetryClient, ExponentialRetry
+from datetime import datetime
 from .models import Job, Company
-from .params_code import ConfigCode, get_location_code, get_job_code, get_sort_code, get_company_code
+from .params_code import SearchParams
 
-class SaraminCrawler:
+class JobCrawler:
     def __init__(self):
+        self.search_params = SearchParams()
         self.base_url = "https://www.saramin.co.kr/zf_user/search/recruit"
-        
-        # 기본 설정
-        self.keywords = ['python', 'java', 'javascript', 'react', 'node.js', 
-                        'spring', 'django', 'vue.js', 'flutter', 'kotlin']
-        self.location = "서울"  # 기본 지역
-        self.job_category = "IT개발·데이터"  # 기본 직종
-        self.sort_type = "등록일순"  # 기본 정렬
-        self.company_type = "중견·중소"  # 기본 회사형태
-        
-        self.min_jobs = 100
-        self.max_retries = 5
-        self.retry_delay = 5
-        self.page_delay = 2
-        
-        # aiohttp 설정
-        self.timeout = ClientTimeout(total=30, connect=10)
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7'
-        }
-
-    async def _crawl_page(self, session, keyword, page):
-        retry_options = ExponentialRetry(
-            attempts=self.max_retries,
-            start_timeout=1,
-            max_timeout=10,
-            factor=2
-        )
-        
-        async with RetryClient(
-            client_session=session,
-            retry_options=retry_options
-        ) as client:
-            try:
-                await asyncio.sleep(self.page_delay + random.uniform(1, 2))
-                
-                params = {
-                    'searchType': 'search',
-                    'searchword': keyword,
-                    'recruitPage': page,
-                    'loc_mcd': get_location_code(self.location),
-                    'cat_mcls': get_job_code(self.job_category),
-                    'recruitSort': get_sort_code(self.sort_type),
-                    'inner_com_type': get_company_code(self.company_type)
-                }
-                
-                async with client.get(
-                    self.base_url,
-                    params=params,
-                    headers=self.headers,
-                    timeout=self.timeout,
-                    ssl=False
-                ) as response:
-                    if response.status == 403:
-                        logging.error(f"접근이 차단됨 (키워드: {keyword}, 페이지: {page})")
-                        await asyncio.sleep(60)
-                        return []
-                        
-                    response.raise_for_status()
-                    html = await response.text()
-                    
-                    soup = BeautifulSoup(html, 'html.parser')
-                    job_items = soup.select('.item_recruit')
-                    
-                    if not job_items:
-                        logging.warning(f"채용 항목을 찾을 수 없음 (키워드: {keyword}, 페이지: {page})")
-                        return []
-                    
-                    jobs = []
-                    for job in job_items:
-                        job_data = self._parse_job_item(job)
-                        if job_data:
-                            jobs.append(job_data)
-                    
-                    logging.info(f"페이지 {page}에서 {len(jobs)}개의 채용공고를 찾았습니다 (키워드: {keyword})")
-                    return jobs
-                    
-            except asyncio.TimeoutError:
-                logging.error(f"타임아웃 발생 (키워드: {keyword}, 페이지: {page})")
-                return []
-            except Exception as e:
-                logging.error(f"예상치 못한 오류 발생 (키워드: {keyword}, 페이지: {page}): {str(e)}")
-                return []
-
-    def _parse_job_item(self, job):
-        try:
-            company = job.select_one(".corp_name a")
-            company = company.text.strip() if company else "N/A"
-
-            title = job.select_one(".job_tit a")
-            title = title.text.strip() if title else "N/A"
-
-            link = job.select_one(".job_tit a")
-            link = "https://www.saramin.co.kr" + link["href"] if link else "N/A"
-
-            conditions = job.select(".job_condition span")
-            location = conditions[0].text.strip() if len(conditions) > 0 else "N/A"
-            experience = conditions[1].text.strip() if len(conditions) > 1 else "N/A"
-            education = conditions[2].text.strip() if len(conditions) > 2 else "N/A"
-            employment_type = conditions[3].text.strip() if len(conditions) > 3 else "N/A"
-
-            deadline = job.select_one(".job_date .date")
-            deadline = deadline.text.strip() if deadline else "N/A"
-
-            job_sector = job.select_one(".job_sector")
-            sector = job_sector.text.strip() if job_sector else "N/A"
-
-            salary_badge = job.select_one(".area_badge .badge")
-            salary = salary_badge.text.strip() if salary_badge else "N/A"
-
-            return {
-                "company": company,
-                "title": title,
-                "link": link,
-                "location": location,
-                "experience": experience,
-                "education": education,
-                "employment_type": employment_type,
-                "deadline": deadline,
-                "sector": sector,
-                "salary": salary
+        self.session_config = {
+            'timeout': 30,
+            'headers': {
+                'User-Agent': f'Mozilla/5.0 JobSearchBot/{datetime.now().strftime("%Y%m%d")}',
+                'Accept': 'text/html,application/xhtml+xml',
+                'Accept-Language': 'ko-KR,ko;q=0.9'
             }
+        }
+        
+        # 검색 설정
+        self.tech_stack = [
+            '백엔드', '프론트엔드', '데이터엔지니어',
+            '데브옵스', '클라우드', '보안'
+        ]
+        self.regions = ['서울', '경기', '인천']
+        self.max_pages = 5
+        self.delay = 1.5
+
+    async def fetch_page(self, session, params):
+        """페이지 데이터 가져오기"""
+        try:
+            async with session.get(self.base_url, params=params) as response:
+                if response.status != 200:
+                    logging.error(f"HTTP {response.status}: {params}")
+                    return None
+                return await response.text()
         except Exception as e:
-            logging.error(f"채용 정보 파싱 중 오류 발생: {str(e)}")
+            logging.error(f"페이지 요청 실패: {str(e)}")
             return None
 
-    async def crawl(self):
-        async with aiohttp.ClientSession() as session:
-            all_jobs = []
-            for keyword in self.keywords:
-                logging.info(f"키워드 '{keyword}' 크롤링 시작")
-                tasks = []
-                
-                for page in range(1, 11):
-                    task = asyncio.create_task(self._crawl_page(session, keyword, page))
-                    tasks.append(task)
-                
-                results = await asyncio.gather(*tasks)
-                keyword_jobs = []
-                for page_jobs in results:
-                    keyword_jobs.extend(page_jobs)
-                
-                logging.info(f"키워드 '{keyword}': {len(keyword_jobs)}개의 채용공고 수집 완료")
-                all_jobs.extend(keyword_jobs)
+    def extract_job_info(self, element):
+        """채용 정보 추출"""
+        try:
+            info = {}
             
-            # DB 저장
-            try:
-                saved_count = 0
-                for job_data in all_jobs:
-                    # 회사 정보 저장
-                    company = Company.query.filter_by(name=job_data['company']).first()
-                    if not company:
-                        company = Company(name=job_data['company'])
-                        company.save()
+            # 기본 정보
+            if title_elem := element.select_one('[class*="job_tit"]'):
+                info['title'] = title_elem.get_text(strip=True)
+                info['link'] = title_elem.get('href', '')
+                
+            # 회사 정보
+            if company_elem := element.select_one('[class*="corp_name"]'):
+                info['company_name'] = company_elem.get_text(strip=True)
+                
+            # 상세 정보
+            details = element.select('[class*="job_condition"] > span')
+            info.update({
+                'location': details[0].get_text(strip=True) if len(details) > 0 else '',
+                'career': details[1].get_text(strip=True) if len(details) > 1 else '',
+                'education': details[2].get_text(strip=True) if len(details) > 2 else '',
+                'position_type': details[3].get_text(strip=True) if len(details) > 3 else ''
+            })
+            
+            # 추가 정보
+            info['deadline'] = element.select_one('[class*="date"]').get_text(strip=True) if element.select_one('[class*="date"]') else ''
+            info['job_category'] = element.select_one('[class*="job_sector"]').get_text(strip=True) if element.select_one('[class*="job_sector"]') else ''
+            
+            return info
+        except Exception as e:
+            logging.error(f"정보 추출 실패: {str(e)}")
+            return None
 
-                    # 채용공고 저장
-                    job = Job(
-                        company_id=company.id,
-                        title=job_data['title'],
-                        link=job_data['link'],
-                        location=job_data['location'],
-                        experience=job_data['experience'],
-                        education=job_data['education'],
-                        employment_type=job_data['employment_type'],
-                        deadline=job_data['deadline'],
-                        sector=job_data['sector'],
-                        salary=job_data['salary']
-                    )
-                    job.save()
-                    saved_count += 1
+    async def process_search_results(self, html_content):
+        """검색 결과 처리"""
+        if not html_content:
+            return []
+            
+        soup = BeautifulSoup(html_content, 'html.parser')
+        job_elements = soup.select('[class*="item_recruit"]')
+        
+        job_listings = []
+        for element in job_elements:
+            if job_info := self.extract_job_info(element):
+                job_listings.append(job_info)
+                
+        return job_listings
 
-                logging.info(f"총 {saved_count}개의 채용공고 저장 완료")
-            except Exception as e:
-                logging.error(f"DB 저장 중 오류 발생: {str(e)}")
+    async def crawl_jobs(self):
+        """채용 정보 크롤링 실행"""
+        async with aiohttp.ClientSession(**self.session_config) as session:
+            all_jobs = []
+            
+            for tech in self.tech_stack:
+                for region in self.regions:
+                    tasks = []
+                    
+                    for page in range(1, self.max_pages + 1):
+                        params = self.search_params.build_params(
+                            keyword=tech,
+                            region=region,
+                            page=page,
+                            sort="최신순"
+                        )
+                        
+                        task = asyncio.create_task(self.fetch_and_process(
+                            session, params
+                        ))
+                        tasks.append(task)
+                        
+                        await asyncio.sleep(self.delay)
+                    
+                    results = await asyncio.gather(*tasks)
+                    for jobs in results:
+                        if jobs:
+                            all_jobs.extend(jobs)
+            
+            await self.save_jobs(all_jobs)
+
+    async def fetch_and_process(self, session, params):
+        """페이지 데이터 가져오기 및 처리"""
+        if html := await self.fetch_page(session, params):
+            return await self.process_search_results(html)
+        return []
+
+    async def save_jobs(self, jobs):
+        """채용 정보 저장"""
+        try:
+            saved = 0
+            for job_data in jobs:
+                # 회사 정보 처리
+                company = await self.get_or_create_company(job_data['company_name'])
+                
+                # 채용 공고 저장
+                if await self.create_job(company.id, job_data):
+                    saved += 1
+                    
+            logging.info(f"저장 완료: {saved}개의 채용공고")
+        except Exception as e:
+            logging.error(f"저장 실패: {str(e)}")
+
+    async def get_or_create_company(self, name):
+        """회사 정보 조회 또는 생성"""
+        company = Company.query.filter_by(name=name).first()
+        if not company:
+            company = Company(name=name)
+            company.save()
+        return company
+
+    async def create_job(self, company_id, data):
+        """채용 공고 생성"""
+        try:
+            job = Job(
+                company_id=company_id,
+                title=data['title'],
+                link=data['link'],
+                location=data['location'],
+                experience=data['career'],
+                education=data['education'],
+                employment_type=data['position_type'],
+                deadline=data['deadline'],
+                sector=data['job_category']
+            )
+            job.save()
+            return True
+        except Exception as e:
+            logging.error(f"채용공고 저장 실패: {str(e)}")
+            return False
