@@ -11,7 +11,6 @@ from app.database import close_db
 from app.config import Config
 from app.companies.routes import companies_bp
 from app.common.logging import setup_logger
-from app.crawling.scheduler import scheduler
 from app.middleware.rate_limit import api_rate_limit
 from app.cache.redis_cache import cache
 from app.middleware.security import security
@@ -19,7 +18,8 @@ from app.logging.logger import logger
 from app.monitoring.metrics import metrics
 from prometheus_client import make_wsgi_app
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
-from app.crawling.scheduler import scheduler
+from app.crawling import scheduler
+from app.crawling.routes import crawling_bp
 from app.resumes.routes import resumes_bp
 from .crawling import init_app as init_crawling
 import time

@@ -44,4 +44,4 @@ class Job(db.Model):
             'salary': self.salary,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()
-        } 
+        }
