@@ -8,7 +8,7 @@ from datetime import datetime
 def import_csv_to_db(csv_file_path=None):
     """CSV 파일의 채용공고 데이터를 DB에 저장"""
     db = get_db()
-    cursor = db.cursor()
+    cursor = db.cursor(dictionary=True)
 
     try:
         # CSV 파일 경로가 지정되지 않은 경우 최신 파일 사용
@@ -27,11 +27,28 @@ def import_csv_to_db(csv_file_path=None):
             reader = csv.DictReader(f)
             
             for row in reader:
+                # 회사 정보 처리
+                cursor.execute("""
+                    SELECT company_id FROM companies 
+                    WHERE name = %s
+                """, (row['company_name'],))
+                
+                company = cursor.fetchone()
+                if not company:
+                    cursor.execute("""
+                        INSERT INTO companies (name, created_at) 
+                        VALUES (%s, CURRENT_TIMESTAMP)
+                    """, (row['company_name'],))
+                    company_id = cursor.lastrowid
+                else:
+                    company_id = company['company_id']
+
                 # 이미 존재하는 공고인지 확인
                 cursor.execute("""
                     SELECT posting_id FROM job_postings 
-                    WHERE title = %s AND company_name = %s
-                """, (row['title'], row['company_name']))
+                    WHERE title = %s AND company_id = %s
+                    AND deleted_at IS NULL
+                """, (row['title'], company_id))
                 
                 existing = cursor.fetchone()
                 
@@ -39,41 +56,48 @@ def import_csv_to_db(csv_file_path=None):
                     # 기존 공고 업데이트
                     cursor.execute("""
                         UPDATE job_postings 
-                        SET location = %s,
-                            experience = %s,
-                            education = %s,
+                        SET job_description = %s,
+                            experience_level = %s,
+                            education_level = %s,
                             employment_type = %s,
-                            deadline = %s,
-                            tech_stacks = %s,
-                            updated_at = NOW()
+                            salary_info = %s,
+                            deadline_date = %s,
+                            status = 'active'
                         WHERE posting_id = %s
                     """, (
-                        row['location'],
-                        row['experience'],
-                        row['education'],
-                        row['employment_type'],
-                        row['deadline'],
-                        row['tech_stack'],
-                        existing[0]
+                        row.get('description', ''),
+                        row.get('experience', ''),
+                        row.get('education', ''),
+                        row.get('employment_type', ''),
+                        row.get('salary', ''),
+                        row.get('deadline', None),
+                        existing['posting_id']
                     ))
                     updated_count += 1
                 else:
                     # 새 공고 추가
                     cursor.execute("""
                         INSERT INTO job_postings (
-                            title, company_name, location, experience,
-                            education, employment_type, deadline, tech_stacks,
-                            created_at, updated_at
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                            company_id,
+                            title,
+                            job_description,
+                            experience_level,
+                            education_level,
+                            employment_type,
+                            salary_info,
+                            deadline_date,
+                            status,
+                            created_at
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'active', CURRENT_TIMESTAMP)
                     """, (
+                        company_id,
                         row['title'],
-                        row['company_name'],
-                        row['location'],
-                        row['experience'],
-                        row['education'],
-                        row['employment_type'],
-                        row['deadline'],
-                        row['tech_stack']
+                        row.get('description', ''),
+                        row.get('experience', ''),
+                        row.get('education', ''),
+                        row.get('employment_type', ''),
+                        row.get('salary', ''),
+                        row.get('deadline', None)
                     ))
                     saved_count += 1
             
