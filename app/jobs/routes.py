@@ -3,6 +3,8 @@ from app.jobs.models import JobPosting
 from app.middleware.auth import login_required, company_required
 import logging
 from app.database import get_db
+from app.config.location_config import LocationConfig
+from app.config.job_config import JobConfig
 
 jobs_bp = Blueprint('jobs', __name__, url_prefix='/jobs')
 
@@ -82,11 +84,38 @@ def create_job_posting():
                     "message": f"Missing required field: {field}"
                 }), 400)
 
+        # 지역 코드 변환
+        location_code = None
+        if 'location' in data:
+            location = data['location']
+            location_config = LocationConfig()
+            location_code = location_config.get_code(
+                location.get('region'), 
+                location.get('sub_region')
+            )
+            if not location_code:
+                return make_response(jsonify({
+                    "status": "error",
+                    "message": "Invalid location"
+                }), 400)
+
+        # 카테고리 코드 변환
+        category_codes = []
+        if 'categories' in data:
+            job_config = JobConfig()
+            for cat in data['categories']:
+                code = job_config.get_code(
+                    cat.get('category'),
+                    cat.get('sub_category')
+                )
+                if code:
+                    category_codes.append(code)
+
         db = get_db()
         cursor = db.cursor()
         
         try:
-            # 현사 생성
+            # 회사 생성
             cursor.execute("""
                 INSERT INTO companies (name) 
                 VALUES (CONCAT('Company_', %s))
@@ -99,7 +128,7 @@ def create_job_posting():
                 INSERT INTO job_postings (
                     company_id, title, job_description, experience_level,
                     education_level, employment_type, salary_info,
-                    location_id, deadline_date, status
+                    location_code, deadline_date, status
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, %s, %s, %s, 'active'
                 )
@@ -111,27 +140,26 @@ def create_job_posting():
                 data.get('education_level'),
                 data.get('employment_type'),
                 data.get('salary_info'),
-                data.get('location_id'),
+                location_code,
                 data.get('deadline_date')
             ))
             
             posting_id = cursor.lastrowid
             
             # 카테고리 연결
-            if 'categories' in data:
-                for category_id in data['categories']:
-                    cursor.execute("""
-                        INSERT INTO job_categories (job_id, category_id)
-                        VALUES (%s, %s)
-                    """, (posting_id, category_id))
+            for category_code in category_codes:
+                cursor.execute("""
+                    INSERT INTO job_categories (job_id, category_code)
+                    VALUES (%s, %s)
+                """, (posting_id, category_code))
             
             # 기술 스택 연결
             if 'tech_stacks' in data:
-                for tech_id in data['tech_stacks']:
+                for tech_stack in data['tech_stacks']:
                     cursor.execute("""
-                        INSERT INTO job_tech_stacks (job_id, stack_id)
+                        INSERT INTO job_tech_stacks (job_id, tech_stack)
                         VALUES (%s, %s)
-                    """, (posting_id, tech_id))
+                    """, (posting_id, tech_stack))
             
             db.commit()
             
