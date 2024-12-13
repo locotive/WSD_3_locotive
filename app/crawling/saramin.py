@@ -39,8 +39,11 @@ class SaraminCrawler:
             chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
             chrome_options.add_experimental_option('useAutomationExtension', False)
             
+            # Chrome 실행 파일 경로 지정
+            chrome_options.binary_location = "/usr/bin/google-chrome"
+            
             # WebDriver 초기화
-            service = Service(ChromeDriverManager().install())
+            service = Service(ChromeDriverManager(chrome_type="google-chrome").install())
             self.driver = webdriver.Chrome(service=service, options=chrome_options)
             
             # 자동화 감지 우회
@@ -73,7 +76,7 @@ class SaraminCrawler:
                 'searchword': 'python',
                 'loc_mcd': '101000',  # 서울
                 'job_type': '1',      # 정규직
-                'exp_cd': '1',        # 신입
+                'exp_cd': '1',        # ���입
             }
             
             query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
