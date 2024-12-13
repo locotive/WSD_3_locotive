@@ -117,18 +117,19 @@ def get_bookmarks():
         per_page = int(request.args.get('per_page', 20))
         offset = (page - 1) * per_page
 
-        # jobs -> job_postings로 테이블명 수정
+        # 컬럼명 수정: job_id -> posting_id
         cursor.execute("""
             SELECT SQL_CALC_FOUND_ROWS 
-                b.*, j.title as job_title, 
+                b.bookmark_id, b.posting_id, b.created_at,
+                j.title as job_title, 
                 j.deadline_date as deadline, j.salary_info as salary,
                 c.name as company_name,
                 l.city as company_location
             FROM bookmarks b
-            JOIN job_postings j ON b.job_id = j.posting_id
+            JOIN job_postings j ON b.posting_id = j.posting_id
             JOIN companies c ON j.company_id = c.company_id
             LEFT JOIN locations l ON j.location_id = l.location_id
-            WHERE b.user_id = %s AND b.status = 'active'
+            WHERE b.user_id = %s
             ORDER BY b.created_at DESC
             LIMIT %s OFFSET %s
         """, (g.user_id, per_page, offset))
