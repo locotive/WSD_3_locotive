@@ -88,16 +88,32 @@ def login():
         }), 500)
 
 @auth_bp.route('/profile', methods=['GET'])
+@login_required
 def get_profile():
-    # 가장 단순한 형태로 테스트
-    return jsonify({
-        "status": "success",
-        "message": "Test response",
-        "data": {
-            "id": 1,
-            "name": "Test User"
-        }
-    }), 200
+    try:
+        logging.info(f"[Profile] Request headers: {dict(request.headers)}")
+        logging.info(f"[Profile] Current user: {g.current_user if hasattr(g, 'current_user') else 'No user'}")
+        
+        user_id = g.current_user['user_id']
+        user, error = User.get_profile(user_id)
+        
+        if error:
+            return jsonify({
+                "status": "error",
+                "message": error
+            }), 400
+            
+        return jsonify({
+            "status": "success",
+            "data": user
+        })
+        
+    except Exception as e:
+        logging.error(f"[Profile] Error: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
 
 @auth_bp.route('/profile', methods=['PUT'])
 @login_required
