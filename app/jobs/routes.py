@@ -89,11 +89,11 @@ def create_job_posting():
             # 채용공고 생성
             cursor.execute("""
                 INSERT INTO job_postings (
-                    title, description, experience_level,
+                    title, job_description, experience_level,
                     education_level, employment_type, salary_info,
-                    location_id, deadline_date, created_at, updated_at
+                    location_id, deadline_date, status, created_at
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
+                    %s, %s, %s, %s, %s, %s, %s, %s, 'active', CURRENT_TIMESTAMP
                 )
             """, (
                 data['title'],
