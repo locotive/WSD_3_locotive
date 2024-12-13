@@ -121,17 +121,17 @@ def create_job_posting():
             if 'categories' in data:
                 for category_id in data['categories']:
                     cursor.execute("""
-                        INSERT INTO job_categories (job_id, category_id)
+                        INSERT INTO posting_categories (posting_id, category_id)
                         VALUES (%s, %s)
                     """, (posting_id, category_id))
             
             # 기술 스택 연결
             if 'tech_stacks' in data:
-                for tech_id in data['tech_stacks']:
+                for stack_id in data['tech_stacks']:
                     cursor.execute("""
-                        INSERT INTO job_tech_stacks (job_id, tech_stack_id)
+                        INSERT INTO job_tech_stacks (posting_id, stack_id)
                         VALUES (%s, %s)
-                    """, (posting_id, tech_id))
+                    """, (posting_id, stack_id))
             
             db.commit()
             
