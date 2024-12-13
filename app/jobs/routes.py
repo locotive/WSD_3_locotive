@@ -89,13 +89,14 @@ def create_job_posting():
             # 채용공고 생성
             cursor.execute("""
                 INSERT INTO job_postings (
-                    title, job_description, experience_level,
+                    company_id, title, job_description, experience_level,
                     education_level, employment_type, salary_info,
                     location_id, deadline_date, status, created_at
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, 'active', CURRENT_TIMESTAMP
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, 'active', CURRENT_TIMESTAMP
                 )
             """, (
+                g.user_id,  # 현재 로그인한 사용자의 ID
                 data['title'],
                 data['job_description'],
                 data.get('experience_level'),
