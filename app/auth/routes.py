@@ -91,25 +91,70 @@ def login():
 @login_required
 def get_profile():
     try:
-        logging.info(f"[Profile] Request headers: {dict(request.headers)}")
-        logging.info(f"[Profile] Current user: {g.current_user if hasattr(g, 'current_user') else 'No user'}")
+        logging.info(f"[Route] Headers: {dict(request.headers)}")
+        logging.info(f"[Route] g object attributes: {[attr for attr in dir(g) if not attr.startswith('_')]}")
         
-        user_id = g.current_user['user_id']
-        user, error = User.get_profile(user_id)
+        if not hasattr(g, 'current_user'):
+            logging.error("[Route] No current_user in g object")
+            return jsonify({
+                "status": "error",
+                "message": "Authentication required"
+            }), 401
+            
+        logging.info(f"[Route] current_user data: {g.current_user}")
+        
+        if not g.current_user:
+            logging.error("[Route] current_user is None")
+            return jsonify({
+                "status": "error",
+                "message": "User not found"
+            }), 404
+            
+        user_id = g.current_user.get('user_id')
+        logging.info(f"[Route] Attempting to fetch profile for user_id: {user_id}")
+        
+        if not user_id:
+            logging.error("[Route] No user_id in current_user")
+            return jsonify({
+                "status": "error",
+                "message": "Invalid user data"
+            }), 400
+            
+        logging.info(f"[Route] Extracted user_id: {user_id}")
+        
+        user, error = User.get_user_profile(user_id)
+        logging.info(f"[Route] get_user_profile result - user: {user}, error: {error}")
         
         if error:
+            logging.error(f"[Route] Profile fetch error: {error}")
             return jsonify({
                 "status": "error",
                 "message": error
-            }), 400
+            }), 404
+            
+        if not user:
+            logging.error("[Route] User data not found")
+            return jsonify({
+                "status": "error",
+                "message": "User not found"
+            }), 404
+            
+        logging.info(f"[Route] Profile fetched successfully for user: {user_id}")
+        
+        if user.get('created_at'):
+            user['created_at'] = user['created_at'].isoformat()
+        if user.get('last_login'):
+            user['last_login'] = user['last_login'].isoformat()
+        if user.get('birth_date'):
+            user['birth_date'] = user['birth_date'].isoformat()
             
         return jsonify({
             "status": "success",
             "data": user
-        })
-        
+        }), 200
+
     except Exception as e:
-        logging.error(f"[Profile] Error: {str(e)}")
+        logging.error(f"[Route] Profile fetch error: {str(e)}")
         return jsonify({
             "status": "error",
             "message": str(e)
