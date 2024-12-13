@@ -130,7 +130,7 @@ def create_job_posting():
             if 'categories' in data:
                 for category_id in data['categories']:
                     cursor.execute("""
-                        INSERT INTO job_categories (posting_id, category_id)
+                        INSERT INTO posting_categories (posting_id, category_id)
                         VALUES (%s, %s)
                     """, (posting_id, category_id))
             
