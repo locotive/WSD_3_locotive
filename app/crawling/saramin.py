@@ -25,65 +25,23 @@ class SaraminCrawler:
 
     def crawl_jobs(self):
         all_jobs = []
-        total_pages = 0
-        
         for keyword in self.keywords:
-            page = 1
-            while len(all_jobs) < self.min_jobs and page <= 10:  # 최대 10페이지까지
-                try:
-                    jobs = self._crawl_page(keyword, page)
-                    if not jobs:  # 더 이상 결과가 없으면 다음 키워드로
-                        break
-                    
-                    # 중복 제거
-                    new_jobs = self._filter_duplicates(jobs, all_jobs)
-                    all_jobs.extend(new_jobs)
-                    
-                    logging.info(f"Collected {len(all_jobs)} jobs so far ({keyword}, page {page})")
-                    page += 1
-                    total_pages += 1
-                    time.sleep(self.page_delay)
-                    
-                except Exception as e:
-                    logging.error(f"Error crawling {keyword} page {page}: {str(e)}")
-                    if page == 1:  # 첫 페이지 실패시 다음 키워드로
-                        break
-                    page += 1
-                    
-        logging.info(f"Total jobs collected: {len(all_jobs)} from {total_pages} pages")
+            logging.info(f"Starting crawl for keyword: {keyword}")
+            try:
+                jobs = self.crawl_keyword_pages(keyword)
+                all_jobs.extend(jobs)
+                logging.info(f"Keyword '{keyword}': Collected {len(jobs)} jobs")
+            except Exception as e:
+                logging.error(f"Error crawling keyword '{keyword}': {str(e)}")
+        logging.info(f"Total jobs collected: {len(all_jobs)}")
         return all_jobs
+    
+    def crawl_keyword_pages(self, keyword):
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [executor.submit(self._crawl_page, keyword, page) for page in range(1, 11)]
+            results = [future.result() for future in futures]
+        return [job for result in results for job in result if result]
 
-    def _crawl_page(self, keyword, page, attempt=1):
-        url = f"{self.base_url}?searchType=search&searchword={keyword}&recruitPage={page}"
-        
-        try:
-            response = self.session.get(url)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            job_listings = soup.select('.item_recruit')
-            if not job_listings:
-                return []
-            
-            jobs = []
-            for job in job_listings:
-                try:
-                    job_data = self._parse_job_item(job)
-                    if job_data:
-                        jobs.append(job_data)
-                except Exception as e:
-                    logging.error(f"Error parsing job item: {str(e)}")
-                    continue
-            
-            return jobs
-            
-        except requests.RequestException as e:
-            if attempt < self.max_retries:
-                logging.warning(f"Retry {attempt}/{self.max_retries} for {url}: {str(e)}")
-                time.sleep(self.retry_delay)
-                return self._crawl_page(keyword, page, attempt + 1)
-            logging.error(f"Failed to crawl {url} after {self.max_retries} attempts")
-            return []
 
     def _filter_duplicates(self, new_jobs, existing_jobs):
         # 메모리상의 중복 제거
