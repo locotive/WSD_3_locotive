@@ -199,17 +199,20 @@ class User:
         try:
             cursor.execute("""
                 SELECT 
-                    user_id,
-                    email,
-                    name,
-                    phone,
-                    birth_date,
-                    created_at,
-                    last_login,
-                    (SELECT COUNT(*) FROM applications WHERE user_id = users.user_id) as application_count,
-                    (SELECT COUNT(*) FROM bookmarks WHERE user_id = users.user_id) as bookmark_count
-                FROM users
-                WHERE user_id = %s AND status = 'active'
+                    u.user_id,
+                    u.email,
+                    u.name,
+                    u.phone,
+                    u.birth_date,
+                    u.created_at,
+                    u.last_login,
+                    COUNT(DISTINCT a.application_id) as application_count,
+                    COUNT(DISTINCT b.bookmark_id) as bookmark_count
+                FROM users u
+                LEFT JOIN applications a ON u.user_id = a.user_id
+                LEFT JOIN bookmarks b ON u.user_id = b.user_id
+                WHERE u.user_id = %s AND u.status = 'active'
+                GROUP BY u.user_id
             """, (user_id,))
             
             user = cursor.fetchone()
