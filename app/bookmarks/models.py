@@ -3,7 +3,28 @@ import logging
 
 class Bookmark:
     @staticmethod
-    def toggle_bookmark(user_id: int, posting_id: int):
+    def check_bookmark(user_id: int, job_id: int):
+        db = get_db()
+        cursor = db.cursor(dictionary=True)
+
+        try:
+            cursor.execute("""
+                SELECT bookmark_id 
+                FROM bookmarks 
+                WHERE user_id = %s AND posting_id = %s
+            """, (user_id, job_id))
+            
+            exists = cursor.fetchone() is not None
+            return {"is_bookmarked": exists}, None
+
+        except Exception as e:
+            logging.error(f"Bookmark check error: {str(e)}")
+            return None, str(e)
+        finally:
+            cursor.close()
+
+    @staticmethod
+    def add_bookmark(user_id: int, job_id: int):
         db = get_db()
         cursor = db.cursor(dictionary=True)
 
@@ -13,40 +34,67 @@ class Bookmark:
                 SELECT posting_id 
                 FROM job_postings 
                 WHERE posting_id = %s AND status = 'active'
-            """, (posting_id,))
+            """, (job_id,))
             
             if not cursor.fetchone():
                 return None, "Invalid job posting"
 
-            # 기존 북마크 확인
+            # 이미 북마크 되어있는지 확인
             cursor.execute("""
                 SELECT bookmark_id 
                 FROM bookmarks 
                 WHERE user_id = %s AND posting_id = %s
-            """, (user_id, posting_id))
+            """, (user_id, job_id))
             
-            existing_bookmark = cursor.fetchone()
+            if cursor.fetchone():
+                return None, "Already bookmarked"
 
-            if existing_bookmark:
-                # 북마크 삭제
-                cursor.execute("""
-                    DELETE FROM bookmarks 
-                    WHERE bookmark_id = %s
-                """, (existing_bookmark['bookmark_id'],))
-                db.commit()
-                return {"action": "removed"}, None
-            else:
-                # 북마크 추가
-                cursor.execute("""
-                    INSERT INTO bookmarks (user_id, posting_id)
-                    VALUES (%s, %s)
-                """, (user_id, posting_id))
-                db.commit()
-                return {"action": "added", "bookmark_id": cursor.lastrowid}, None
+            # 북마크 추가
+            cursor.execute("""
+                INSERT INTO bookmarks (user_id, posting_id)
+                VALUES (%s, %s)
+            """, (user_id, job_id))
+            
+            bookmark_id = cursor.lastrowid
+            db.commit()
+            return {"bookmark_id": bookmark_id}, None
 
         except Exception as e:
             db.rollback()
-            logging.error(f"Bookmark toggle error: {str(e)}")
+            logging.error(f"Bookmark add error: {str(e)}")
+            return None, str(e)
+        finally:
+            cursor.close()
+
+    @staticmethod
+    def remove_bookmark(user_id: int, job_id: int):
+        db = get_db()
+        cursor = db.cursor()
+
+        try:
+            # 북마크 존재 확인
+            cursor.execute("""
+                SELECT bookmark_id 
+                FROM bookmarks 
+                WHERE user_id = %s AND posting_id = %s
+            """, (user_id, job_id))
+            
+            bookmark = cursor.fetchone()
+            if not bookmark:
+                return None, "Bookmark not found"
+
+            # 북마크 삭제
+            cursor.execute("""
+                DELETE FROM bookmarks 
+                WHERE user_id = %s AND posting_id = %s
+            """, (user_id, job_id))
+            
+            db.commit()
+            return {"message": "Bookmark removed successfully"}, None
+
+        except Exception as e:
+            db.rollback()
+            logging.error(f"Bookmark remove error: {str(e)}")
             return None, str(e)
         finally:
             cursor.close()
