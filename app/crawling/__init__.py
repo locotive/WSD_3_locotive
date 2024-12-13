@@ -1,27 +1,26 @@
 from flask import Blueprint
 from flask_apscheduler import APScheduler
 from pytz import timezone
+from apscheduler.schedulers.background import BackgroundScheduler
 
 crawling_bp = Blueprint('crawling', __name__)
 
-# APScheduler 설정
+# 스케줄러 설정
 scheduler_config = {
-    'timezone': timezone('Asia/Seoul'),  # 명시적으로 타임존 설정
-    'job_defaults': {
-        'coalesce': False,
-        'max_instances': 1
-    }
+    'apscheduler.timezone': 'Asia/Seoul',
+    'apscheduler.job_defaults.coalesce': False,
+    'apscheduler.job_defaults.max_instances': 1
 }
 
-scheduler = APScheduler()
+# 스케줄러 초기화
+scheduler = APScheduler(scheduler=BackgroundScheduler(timezone='Asia/Seoul'))
 
 def init_app(app):
     """크롤링 모듈 초기화"""
     from .routes import crawling_bp
     
     # APScheduler 설정 적용
-    app.config['SCHEDULER_API_ENABLED'] = True
-    app.config['SCHEDULER_TIMEZONE'] = 'Asia/Seoul'
+    app.config.update(scheduler_config)
     
     scheduler.init_app(app)
     scheduler.api_enabled = True
