@@ -121,17 +121,17 @@ def create_job_posting():
             if 'categories' in data:
                 for category_id in data['categories']:
                     cursor.execute("""
-                        INSERT INTO posting_categories (posting_id, category_id)
+                        INSERT INTO job_categories (job_id, category_id)
                         VALUES (%s, %s)
                     """, (posting_id, category_id))
             
             # 기술 스택 연결
             if 'tech_stacks' in data:
-                for stack_id in data['tech_stacks']:
+                for tech_id in data['tech_stacks']:
                     cursor.execute("""
-                        INSERT INTO job_tech_stacks (posting_id, stack_id)
+                        INSERT INTO job_tech_stacks (job_id, stack_id)
                         VALUES (%s, %s)
-                    """, (posting_id, stack_id))
+                    """, (posting_id, tech_id))
             
             db.commit()
             
@@ -159,24 +159,98 @@ def create_job_posting():
 
 @jobs_bp.route('/<int:posting_id>', methods=['PUT'])
 @login_required
-@company_required
 def update_job_posting(posting_id):
     try:
         data = request.get_json()
+        db = get_db()
+        cursor = db.cursor()
         
-        # TODO: Implement update_posting method
-        error = JobPosting.update_posting(posting_id, g.company_id, data)
-        if error:
+        try:
+            # 해당 채용공고의 작성자 확인
+            cursor.execute("""
+                SELECT jp.company_id 
+                FROM job_postings jp
+                JOIN companies c ON jp.company_id = c.company_id
+                WHERE jp.posting_id = %s 
+                AND c.name = CONCAT('Company_', %s)
+            """, (posting_id, g.user_id))
+            
+            result = cursor.fetchone()
+            if not result:
+                return make_response(jsonify({
+                    "status": "error",
+                    "message": "Permission denied or posting not found"
+                }), 403)
+                
+            # 채용공고 업데이트
+            cursor.execute("""
+                UPDATE job_postings SET
+                    title = %s,
+                    job_description = %s,
+                    experience_level = %s,
+                    education_level = %s,
+                    employment_type = %s,
+                    salary_info = %s,
+                    location_id = %s,
+                    deadline_date = %s
+                WHERE posting_id = %s
+            """, (
+                data['title'],
+                data['job_description'],
+                data.get('experience_level'),
+                data.get('education_level'),
+                data.get('employment_type'),
+                data.get('salary_info'),
+                data.get('location_id'),
+                data.get('deadline_date'),
+                posting_id
+            ))
+            
+            # 기존 카테고리 삭제
+            cursor.execute("""
+                DELETE FROM posting_categories 
+                WHERE posting_id = %s
+            """, (posting_id,))
+            
+            # 새 카테고리 연결
+            if 'categories' in data:
+                for category_id in data['categories']:
+                    cursor.execute("""
+                        INSERT INTO posting_categories (posting_id, category_id)
+                        VALUES (%s, %s)
+                    """, (posting_id, category_id))
+            
+            # 기존 기술 스택 삭제
+            cursor.execute("""
+                DELETE FROM job_tech_stacks 
+                WHERE posting_id = %s
+            """, (posting_id,))
+            
+            # 새 기술 스택 연결
+            if 'tech_stacks' in data:
+                for stack_id in data['tech_stacks']:
+                    cursor.execute("""
+                        INSERT INTO job_tech_stacks (posting_id, stack_id)
+                        VALUES (%s, %s)
+                    """, (posting_id, stack_id))
+            
+            db.commit()
+            
+            return make_response(jsonify({
+                "status": "success",
+                "message": "Job posting updated successfully"
+            }), 200)
+            
+        except Exception as e:
+            db.rollback()
+            logging.error(f"Job posting update error: {str(e)}")
             return make_response(jsonify({
                 "status": "error",
-                "message": error
-            }), 400)
-
-        return make_response(jsonify({
-            "status": "success",
-            "message": "Job posting updated successfully"
-        }), 200)
-
+                "message": str(e)
+            }), 500)
+        finally:
+            cursor.close()
+            
     except Exception as e:
         logging.error(f"Job posting update error: {str(e)}")
         return make_response(jsonify({
@@ -186,22 +260,52 @@ def update_job_posting(posting_id):
 
 @jobs_bp.route('/<int:posting_id>', methods=['DELETE'])
 @login_required
-@company_required
 def delete_job_posting(posting_id):
     try:
-        # TODO: Implement delete_posting method
-        error = JobPosting.delete_posting(posting_id, g.company_id)
-        if error:
+        db = get_db()
+        cursor = db.cursor()
+        
+        try:
+            # 해당 채용공고의 작성자 확인
+            cursor.execute("""
+                SELECT jp.company_id 
+                FROM job_postings jp
+                JOIN companies c ON jp.company_id = c.company_id
+                WHERE jp.posting_id = %s 
+                AND c.name = CONCAT('Company_', %s)
+            """, (posting_id, g.user_id))
+            
+            result = cursor.fetchone()
+            if not result:
+                return make_response(jsonify({
+                    "status": "error",
+                    "message": "Permission denied or posting not found"
+                }), 403)
+            
+            # 채용공고 삭제 (또는 soft delete)
+            cursor.execute("""
+                UPDATE job_postings 
+                SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP
+                WHERE posting_id = %s
+            """, (posting_id,))
+            
+            db.commit()
+            
+            return make_response(jsonify({
+                "status": "success",
+                "message": "Job posting deleted successfully"
+            }), 200)
+            
+        except Exception as e:
+            db.rollback()
+            logging.error(f"Job posting deletion error: {str(e)}")
             return make_response(jsonify({
                 "status": "error",
-                "message": error
-            }), 400)
-
-        return make_response(jsonify({
-            "status": "success",
-            "message": "Job posting deleted successfully"
-        }), 200)
-
+                "message": str(e)
+            }), 500)
+        finally:
+            cursor.close()
+            
     except Exception as e:
         logging.error(f"Job posting deletion error: {str(e)}")
         return make_response(jsonify({
