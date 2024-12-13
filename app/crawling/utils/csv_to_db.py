@@ -70,6 +70,12 @@ def import_csv_to_db(csv_file_path=None):
 if __name__ == '__main__':
     import sys
     from flask import Flask
+    import os
+    
+    # PYTHONPATH에 프로젝트 루트 디렉토리 추가
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+    sys.path.insert(0, project_root)
+    
     from app import create_app
     
     app = create_app()
