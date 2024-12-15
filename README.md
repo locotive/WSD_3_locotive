@@ -476,14 +476,14 @@ sudo ../venv/bin/python -m app.crawling.utils.csv_to_db
 
 ## 데이터 관리
 
-### 로컬 크롤링 데이터 DB 업로드
+### 로컬 크롤링 및 데이터 업로드
 
 #### 1. 사전 준비
 - Python 3.x 설치
-- 필요한 패키지 설치:
 ```bash
-pip install python-dotenv mysql-connector-python
+pip install -r requirements.txt
 ```
+
 프로젝트 루트에서 로컬 크롤링 실행:
 '''bash
 python local_crawler.py
