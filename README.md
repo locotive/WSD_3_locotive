@@ -1,17 +1,20 @@
-# Job Search API
+# 채용 플랫폼 API
 
-채용정보 검색 및 지원 API 서비스
+## 목차
+1. [프로젝트 개요](#프로젝트-개요)
+2. [기술 스택](#기술-스택)
+3. [설치 및 실행 방법](#설치-및-실행-방법)
+4. [환경 설정](#환경-설정)
+5. [API 문서](#api-문서)
+6. [데이터베이스](#데이터베이스)
+7. [크롤링](#크롤링)
+8. [Reference](#reference)
 
-## 주요 기능
+## 프로젝트 개요
+사람인 채용정보를 크롤링하여 제공하는 채용 플랫폼 API 서비스입니다.
 
-### 크롤링
-- 사람인 채용정보 자동 수집
-- 비동기 크롤링으로 성능 최적화
-- 스케줄링된 자동 업데이트 (매일 새벽 2시)
-- 수동 크롤링 API 제공
-
-### 사용자 기능
-- JWT 기반 회원 인증
+### 주요 기능
+- 채용공고 검색 및 필터링
 - 이력서 관리
 - 채용공고 지원
 - 북마크 기능
@@ -154,10 +157,21 @@ Swagger UI: http://113.198.66.75:17102/api/docs
 
 ## 포트 구성
 - 로컬 개발: 5000
-- 서버 환경:
+
+### 개발 서버
+- IP: 113.198.66.75
+- 포트 구성:
   - SSH: 19102
   - Backend(Flask): 17102
   - Database(MySQL): 13102
+  - Redis: 16102
+
+  ### 접속 정보
+- SSH: `ssh -p 19102 ubuntu@113.198.66.75`
+- API: `http://113.198.66.75:17102`
+- API 문서: `http://113.198.66.75:17102/api/docs`
+- Prometheus 메트릭: `http://113.198.66.75:17102/metrics`
+
 
 ## 모니터링
 
@@ -171,20 +185,26 @@ Swagger UI: http://113.198.66.75:17102/api/docs
 - 에러율
 - 크롤링 성공/실패
 
-### 로깅
-- 위치: `logs/`
-- 로그 레벨: INFO, ERROR
-- 로그 포맷: JSON
+## 성능 최적화
+- 데이터베이스 인덱싱
+- 캐시 적용 (Redis)
+- 페이지네이션 구현
 
-## 테스트
+## 데이터베이스
 
-```bash
-# 전체 테스트 실행
-pytest
+### 테이블 구조
+- 테이블 구조는 데이터베이스 마이그레이션 스크립트를 참고하세요.
 
-# 커버리지 리포트 생성
-pytest --cov=app tests/
-```
+### 데이터 예시
+- 데이터 예시는 데이터베이스 마이그레이션 스크립트를 참고하세요.
+
+## Reference
+
+### 참고 자료
+- 참고 자료는 참고 자료를 참고하세요.
+
+### 참고 코드
+- 참고 코드는 참고 코드를 참고하세요.
 
 ## 라이선스
 
@@ -254,3 +274,274 @@ MIT License
 | 6  | MySQL |
 | 7  | AWS |
 | 8  | Docker |
+
+## 프로젝트 구조
+
+```
+job-search-api/
+├── app/
+│   ├── __init__.py
+│   ├── auth/
+│   │   ├── __init__.py
+│   │   ├── routes.py
+│   │   └── utils.py
+│   ├── jobs/
+│   │   ├── __init__.py
+│   │   ├── routes.py
+│   │   └── utils.py
+│   ├── crawling/
+│   │   ├── __init__.py
+│   │   ├── crawler.py
+│   │   └── scheduler.py
+│   ├── models/
+│   │   ├── __init__.py
+│   │   ├── user.py
+│   │   └── job.py
+│   └── utils/
+│       ├── __init__.py
+│       └── helpers.py
+├── migrations/
+├── tests/
+├── .env.example
+├── requirements.txt
+└── README.md
+```
+
+## 데이터베이스 스키마
+
+### users
+```sql
+CREATE TABLE users (
+    user_id INT PRIMARY KEY AUTO_INCREMENT,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    phone VARCHAR(20),
+    birth_date DATE,
+    status ENUM('active', 'inactive', 'deleted') DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### job_postings
+```sql
+CREATE TABLE job_postings (
+    posting_id INT PRIMARY KEY AUTO_INCREMENT,
+    company_id INT,
+    title VARCHAR(255) NOT NULL,
+    job_description TEXT NOT NULL,
+    experience_level VARCHAR(50),
+    education_level VARCHAR(50),
+    employment_type VARCHAR(50),
+    salary_info VARCHAR(100),
+    location_id INT,
+    deadline_date DATE,
+    view_count INT DEFAULT 0,
+    status ENUM('active', 'closed', 'deleted') DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (company_id) REFERENCES companies(company_id),
+    FOREIGN KEY (location_id) REFERENCES locations(location_id)
+);
+```
+
+## 크롤링 구현
+
+### 크롤링 프로세스
+1. 사람인 API 호출
+2. 데이터 파싱 및 전처리
+3. 데이터베이스 저장
+4. 에러 처리 및 로깅
+
+### 크롤링 코드 예시
+```python
+from app.crawling.crawler import SaraminCrawler
+
+# 크롤러 초기화
+crawler = SaraminCrawler(
+    api_key=os.getenv('SARAMIN_API_KEY'),
+    db_connection=db.connection
+)
+
+# 크롤링 실행
+try:
+    result = crawler.crawl_jobs()
+    print(f"Successfully crawled {result.total_jobs} jobs")
+except Exception as e:
+    print(f"Crawling failed: {str(e)}")
+```
+
+## 에러 처리
+
+### 에러 코드
+- 400: 잘못된 요청
+- 401: 인증 실패
+- 403: 권한 없음
+- 404: 리소스 없음
+- 409: 충돌 (중복 등)
+- 500: 서버 에러
+
+### 에러 응답 예시
+```json
+{
+    "status": "error",
+    "message": "Invalid input parameters",
+    "errors": [
+        {
+            "field": "email",
+            "message": "Invalid email format"
+        }
+    ]
+}
+```
+
+## 보안 설정
+
+### JWT 설정
+```python
+JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')
+JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=24)
+JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
+```
+
+### 비밀번호 인코딩
+```python
+# Base64 인코딩 사용
+from base64 import b64encode
+password_hash = b64encode(password.encode()).decode()
+```
+
+## 모니터링 설정
+
+### Prometheus 설정
+```python
+from prometheus_flask_exporter import PrometheusMetrics
+
+metrics = PrometheusMetrics(app)
+metrics.info('app_info', 'Application info', version='1.0.0')
+```
+
+### 로깅 설정
+```python
+import logging
+
+logging.basicConfig(
+    filename='app.log',
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s: %(message)s'
+)
+```
+
+## 성능 최적화
+
+### 데이터베이스 인덱스
+```sql
+-- 채용공고 검색 최적화
+CREATE INDEX idx_job_postings_title ON job_postings(title);
+CREATE INDEX idx_job_postings_location ON job_postings(location_id);
+CREATE INDEX idx_job_postings_status ON job_postings(status);
+```
+
+### Redis 캐시
+```python
+from flask_caching import Cache
+
+cache = Cache(app, config={
+    'CACHE_TYPE': 'redis',
+    'CACHE_REDIS_URL': os.getenv('REDIS_URL')
+})
+
+@cache.memoize(timeout=300)
+def get_job_posting(posting_id):
+    return JobPosting.query.get(posting_id)
+```
+
+## 서버 실행 방법
+
+### 백그라운드 서버 실행
+```bash
+cd /home/ubuntu/WSD_3_locotive/WSD_3_locotive
+sudo nohup /home/ubuntu/WSD_3_locotive/venv/bin/python run.py > server.log 2>&1 &
+```
+
+### CSV 데이터 DB 저장
+```bash
+sudo ../venv/bin/python -m app.crawling.utils.csv_to_db
+```
+
+### 유용한 명령어
+- 프로세스 확인: `ps aux | grep python`
+- 서버 로그 확인: `tail -f server.log`
+- 프로세스 종료: `kill -9 [프로세스ID]`
+```
+
+## 데이터 관리
+
+### 로컬 크롤링 데이터 DB 업로드
+
+#### 1. 사전 준비
+- Python 3.x 설치
+- 필요한 패키지 설치:
+```bash
+pip install python-dotenv mysql-connector-python
+```
+프로젝트 루트에서 로컬 크롤링 실행:
+'''bash
+python local_crawler.py
+'''
+
+#### 2. 환경 설정
+1. `.env.example` 파일을 `.env`로 복사:
+```bash
+cp .env.example .env
+```
+
+2. `.env` 파일에서 실제 값으로 수정:
+```
+DB_HOST=113.198.66.75
+DB_USER=your_username
+DB_PASSWORD=your_password
+DB_NAME=your_database
+DB_PORT=13102
+```
+
+> 참고: `.env` 파일은 민감한 정보를 포함하므로 절대 Git에 커밋하지 마세요.
+
+#### 3. 데이터 업로드
+로컬에서 크롤링한 CSV 파일을 JCloud DB에 업로드:
+```bash
+python upload_to_jcloud.py [CSV_FILE_PATH]
+
+# 예시
+python upload_to_jcloud.py crawled_data/saramin_jobs_20241215_120320.csv
+```
+
+#### 4. 업로드 결과
+성공적으로 업로드되면 다음과 같은 메시지가 출력됩니다:
+```
+CSV 업로드 완료: [N]개 새로 저장, [M]개 업데이트
+```
+
+#### 주의사항
+- CSV 파일은 크롤링 스크립트에서 자동 생성된 형식을 유지해야 합니다
+- 중복된 채용공고는 자동으로 업데이트됩니다
+- DB 연결을 위해 올바른 환경변수 설정이 필요합니다
+```
+
+## 환경 설정
+
+#### 2. 환경 설정
+1. `.env.example` 파일을 `.env`로 복사:
+```bash
+cp .env.example .env
+```
+
+2. `.env` 파일에서 실제 값으로 수정:
+```
+DB_HOST=113.198.66.75
+DB_USER=your_username
+DB_PASSWORD=your_password
+DB_NAME=your_database
+DB_PORT=13102
+```
+
+> 참고: `.env` 파일은 민감한 정보를 포함하므로 절대 Git에 커밋하지 마세요.
