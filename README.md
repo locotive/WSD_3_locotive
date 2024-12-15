@@ -190,22 +190,6 @@ Swagger UI: http://113.198.66.75:17102/api/docs
 - 캐시 적용 (Redis)
 - 페이지네이션 구현
 
-## 데이터베이스
-
-### 테이블 구조
-- 테이블 구조는 데이터베이스 마이그레이션 스크립트를 참고하세요.
-
-### 데이터 예시
-- 데이터 예시는 데이터베이스 마이그레이션 스크립트를 참고하세요.
-
-## Reference
-
-### 참고 자료
-- 참고 자료는 참고 자료를 참고하세요.
-
-### 참고 코드
-- 참고 코드는 참고 코드를 참고하세요.
-
 ## 라이선스
 
 MIT License
@@ -545,3 +529,91 @@ DB_PORT=13102
 ```
 
 > 참고: `.env` 파일은 민감한 정보를 포함하므로 절대 Git에 커밋하지 마세요.
+
+## 크롤링
+
+### 크롤링 프로세스
+1. 사람인 API 호출
+2. 데이터 파싱 및 전처리
+3. 데이터베이스 저장
+4. 에러 처리 및 로깅
+
+### 크롤링 코드 예시
+```python
+from app.crawling.crawler import SaraminCrawler
+...
+```
+
+### 크롤링 시스템
+
+#### 1. 자동 크롤링
+매일 새벽 2시에 자동으로 실행되는 크롤링 시스템이 구현되어 있습니다.
+
+```python
+@scheduler.task('cron', id='daily_crawling', hour=2)
+async def scheduled_crawling():
+    with app.app_context():
+        try:
+            crawler = SaraminCrawler()
+            saved_count = await crawler.crawl_jobs()
+            app.logger.info(f"자동 크롤링 완료: {saved_count}개 저장")
+        except Exception as e:
+            app.logger.error(f"자동 크롤링 실패: {str(e)}")
+```
+
+#### 2. 수동 크롤링 API
+필요한 경우 API를 통해 수동으로 크롤링을 실행할 수 있습니다.
+
+##### 엔드포인트
+- 수동 크롤링 실행: `POST /crawling/manual`
+- 크롤링 상태 확인: `GET /crawling/status`
+- 크롤링 로그 조회: `GET /crawling/logs`
+
+##### API 사용 예시
+```bash
+# 수동 크롤링 실행
+curl -X POST http://113.198.66.75:17102/crawling/manual
+
+# 크롤링 상태 확인
+curl http://113.198.66.75:17102/crawling/status
+
+# 크롤링 로그 조회
+curl http://113.198.66.75:17102/crawling/logs
+```
+
+#### 3. 크롤링 프로세스 상세
+1. 데이터 수집
+   - 사람인 채용공고 페이지 크롤링
+   - aiohttp를 사용한 비동기 요청 처리
+   - BeautifulSoup4를 통한 HTML 파싱
+
+2. 데이터 전처리
+   - 중복 채용공고 필터링
+   - 날짜 형식 변환
+   - 필수 필드 유효성 검사
+
+3. 데이터베이스 저장
+   - 새로운 채용공고 추가
+   - 기존 채용공고 업데이트
+   - 트랜잭션 처리
+
+#### 4. 모니터링
+- Prometheus 메트릭
+  - 크롤링 성공/실패 횟수
+  - 처리된 채용공고 수
+  - 실행 시간
+
+- 로깅
+  - 상세 에러 메시지
+  - 처리 단계별 로그
+  - 성능 메트릭
+
+#### 5. 에러 처리
+- 네트워크 오류 재시도
+- 데이터베이스 트랜잭션 롤백
+- 알림 시스템 (에러 발생시)
+
+#### 6. 성능 최적화
+- 비동기 처리로 동시성 향상
+- 배치 처리로 DB 부하 감소
+- Redis 캐시로 중복 요청 방지
